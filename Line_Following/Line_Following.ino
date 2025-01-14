@@ -4,7 +4,7 @@ int motor1Phase = 38;
 int motor2PWM = 35;
 int motor2Phase = 36;
 
-//Line Sensor Constants
+//Line Sensor Arrays
 int sensorArray[5] = {0 ,0 ,0 , 0, 0};
 int analogPins[5] = {4 , 5, 6, 7, 15};
 
@@ -13,9 +13,21 @@ int speed = 150;
 bool run = true;
 int sensitivity = 500;
 
+//PID Settings
+float Kp = 1.0;   //Proportional Gain
+float Ki = 0.0;   //Integral Gain
+float Kd = 1.0;   //Derivative Gain
+
+//PID Variables
+float error = 0;
+float previousError = 0;
+float integral = 0;
+float derivative = 0;
+float correction = 0;
 
 void setup(){
   Serial.begin(9600);
+  
   //Output pin Initialisation
   pinMode(motor1Phase, OUTPUT);
   pinMode(motor2Phase, OUTPUT);
@@ -29,18 +41,7 @@ void setup(){
 }
 
 void loop(){
-  while(run == true){
-    
-    if (analogRead(analogPins[1]) < sensitivity	 && analogRead(analogPins[3]) > sensitivity){
-      right();
-    }
-    else if (analogRead(analogPins[1]) > sensitivity && analogRead(analogPins[3]) < sensitivity) {
-      left();
-    }
-    else {
-      forward();
-    }
-  }
+  
 }
 
 
