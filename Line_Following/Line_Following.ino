@@ -97,23 +97,23 @@ void stop(){
 
 void lineDetection(){
   for (int n = 0; n < 5; n++){
-    sensorValue[n] = map(analogRead(sensorPins[n]), whiteValue, darkValue, 0, 1000);    //Convert the range of sensor readings
-    sensorValue[n] = constrain(sensorValue[n], 0, 1000);    //Limit the possible sensor value
+    sensorArray[n] = map(analogRead(analogPins[n]), whiteValue, darkValue, 0, 1000);    //Convert the range of sensor readings
+    sensorArray[n] = constrain(sensorArray[n], 0, 1000);    //Limit the possible sensor value
   }
 }
 
 void calculatePID(){
   //calculate time
   currentTime = micros();
-  deltaTime = max((currentTime - previousTime) / 1000000.0, 0.0001)  //Delta Time converted to seconds
+  deltaTime = max((currentTime - previousTime) / 1000000.0, 0.0001);  //Delta Time converted to seconds
   previousTime = currentTime;
   
   //calculate PID error
-  error = (sensorArray[0] * -2) + (sensorArray[1] * -1) + (sensorArray[3] * 1) + (sensorArray[4] * 2)) / (sensorArray[0] + sensorArray[1] + sensorArray[3] + sensorArray[4] + 1);  
+  error = ((sensorArray[0] * -2) + (sensorArray[1] * -1) + (sensorArray[3] * 1) + (sensorArray[4] * 2)) / (sensorArray[0] + sensorArray[1] + sensorArray[3] + sensorArray[4] + 1);  
   
   integral += error * deltaTime;      //Integral Error
-  derrivative = (error - previousError) / deltaTime;    //Derivative Error
-  PID = (Kp * error) + (Ki * integral) + (Kd * derrivative);
+  derivative = (error - previousError) / deltaTime;    //Derivative Error
+  PID = (Kp * error) + (Ki * integral) + (Kd * derivative);
   
   //if (abs(error) < 0.1 ){   //reset running integral
   //  integral = 0;
