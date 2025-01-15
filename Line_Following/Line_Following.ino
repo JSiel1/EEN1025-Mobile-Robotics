@@ -1,28 +1,26 @@
 //Motor Pins
-int motor1PWM = 37;
-int motor1Phase = 38;
-int motor2PWM = 35;
-int motor2Phase = 36;
+const int motor1PWM = 37;
+const int motor1Phase = 38;
+const int motor2PWM = 35;
+const int motor2Phase = 36;
 
 //Function declerations
 void forward();
 void reverse();
-void left();
-void right();
 void stop();
-bool lineDetection(int sensorValue);  //true if line detected
-
+void lineDetection();  
+void calculatePID();
 
 //Line Sensor Arrays
 int sensorArray[5] = {0 ,0 ,0 , 0, 0};
-int analogPins[5] = {4 , 5, 6, 7, 15};
-
+const int analogPins[5] = {4 , 5, 6, 7, 15};
 
 //Settings
-int speed = 150;
+int speed = 120;
 bool run = true;
 
-int threshold = 800;
+int whiteValue = 300;       //Sensor Value over white
+int darkValue = 2500;       //Sensor valye over Black
 
 //PID Settings
 float Kp = 1.0;   //Proportional Gain
@@ -36,7 +34,9 @@ float integral = 0;
 float derivative = 0;
 float PID = 0;
 
-
+float currentTime = 0;
+float previousTime = 0;
+float deltaTime = 0;
 
 void setup(){
   Serial.begin(9600);
@@ -54,47 +54,37 @@ void setup(){
 }
 
 void loop(){
-  //calculate PID error
-  error = (sensorArray[0] * -2) + (sensorArray[1] * -1) + (sensorArray[3] * 1) + (sensorArray[4] * 2)) / (sensorArray[0] + sensorArray[1] + sensorArray[3] + sensorArray[4] + 0.001);  
-  integral += error;
-  derrivative += errorr - previousError;
-  PID = (Kp * error) + (Ki * integral) + (Kd * derrivative);
-  previousError = error;
+  lineDetection();
+  calculatePID();
+  driveMotor();
 }
 
+void driveMotor(){
+  int motor1Speed = speed - PID;    //Change sign if turning wrong direction
+  int motor2Speed = speed + PID;    //^^
 
-void reverse(){
-  digitalWrite(motor1Phase, HIGH);
-  digitalWrite(motor2Phase, HIGH);
-  analogWrite(motor1PWM, speed+5);
-  analogWrite(motor2PWM, speed);
-  Serial.println("Reverse");
-}
+  motor1Speed = constrain(motor1Speed, 0, 255);
+  motor2Speed = constrain(motor2Speed, 0, 255);
 
-void forward(){
+  //Minimum Speed to move robot
+  //if (motor1Speed < 20 && error != 0){      
+  //  motor1Speed = 20;
+  //}
+  //if (motor2Speed < 20 && error != 0){
+  //  motor2Speed = 20;
+  //}
+
   digitalWrite(motor1Phase, LOW);
   digitalWrite(motor2Phase, LOW);
-  analogWrite(motor1PWM, speed+5);
-  analogWrite(motor2PWM, speed);
-  Serial.println("Forward");
-}
+  analogWrite(motor1PWM, motor1Speed);
+  analogWrite(motor2PWM, motor2Speed);
 
-void right(){
-  digitalWrite(motor1Phase, LOW);
-  digitalWrite(motor2Phase, LOW);
-  analogWrite(motor1PWM, 0);
-  analogWrite(motor2PWM, speed+60);
-  Serial.println("Right");
-  delay(5);
-}
-
-void left(){
-  digitalWrite(motor1Phase, LOW);
-  digitalWrite(motor2Phase, LOW);
-  analogWrite(motor1PWM, speed+65);
-  analogWrite(motor2PWM, 0);
-  Serial.println("Left");
-  delay(5);
+  Serial.print("PID Correction: \t Left Motor Speed: \t Right Motor Speed: ");
+  Serial.print(PID);
+  Serial.print("\t");
+  Serial.print(motor1Speed);
+  Serial.print("\t");
+  Serial.print(motor2Speed);
 }
 
 void stop(){
@@ -105,12 +95,28 @@ void stop(){
   Serial.println("Stopping");
 }
 
-bool lineDetection(){
+void lineDetection(){
   for (int n = 0; n < 5; n++){
-    if (analogRead(analogPins[n]) < threshold){
-      sensorArray[n] = 1;
-    } else {
-      sensorArray[n] = 0;
-    }
+    sensorValue[n] = map(analogRead(sensorPins[n]), whiteValue, darkValue, 0, 1000);    //Convert the range of sensor readings
+    sensorValue[n] = constrain(sensorValue[n], 0, 1000);    //Limit the possible sensor value
   }
+}
+
+void calculatePID(){
+  //calculate time
+  currentTime = micros();
+  deltaTime = max((currentTime - previousTime) / 1000000.0, 0.0001)  //Delta Time converted to seconds
+  previousTime = currentTime;
+  
+  //calculate PID error
+  error = (sensorArray[0] * -2) + (sensorArray[1] * -1) + (sensorArray[3] * 1) + (sensorArray[4] * 2)) / (sensorArray[0] + sensorArray[1] + sensorArray[3] + sensorArray[4] + 1);  
+  
+  integral += error * deltaTime;      //Integral Error
+  derrivative = (error - previousError) / deltaTime;    //Derivative Error
+  PID = (Kp * error) + (Ki * integral) + (Kd * derrivative);
+  
+  //if (abs(error) < 0.1 ){   //reset running integral
+  //  integral = 0;
+  //}
+  previousError = error;
 }
