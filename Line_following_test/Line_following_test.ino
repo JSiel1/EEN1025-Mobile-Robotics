@@ -6,14 +6,13 @@ int motor2Phase = 36;
 
 //Line Sensor Constants
 int sensorArray[5] = {0 ,0 ,0 , 0, 0};
-int analogPins[5] = {4 , 5, 6, 7, 15};
+int analogPins[5] = {4 , 5, 6, 7, 15};      //[0] is right most sensor
 
 //Settings
-int speed = 150;
-bool run = true;
-int whiteThreshold = 600;
+int speed = 120;
+int whiteThreshold = 500;
 
-const float Kp = 0.5;       // Proportional control factor for damping
+const float Kp = 0.5;   //Lower is smoother  
 
 int motor1Speed = 0;
 int motor2Speed = 0;
@@ -33,45 +32,14 @@ void setup(){
 }
 
 void loop(){
-    // Read sensor values
-  int leftValue = analogRead(analogPins[3]);
-  int leftOuterValue = analogRead(analogPins[4]);
-  int rightOuterValue = analogRead(analogPins[0]);
-  int rightValue = analogRead(analogPins[1]);
-
-  // Debugging output
-  //Serial.print("Left: ");
-  //Serial.print(leftValue);
-  //Serial.print(" | Left Outer: ");
-  //Serial.print(leftOuterValue);
-  //Serial.print(" | Right Outer: ");
-  //Serial.print(rightOuterValue);
-  //Serial.print(" | Right: ");
-  //Serial.println(rightValue);
+  // Read sensor values
+  readSensors();
+  calculateTurn();
 
   Serial.print("Left: ");
   Serial.print(motor1Speed);
   Serial.print(" | Right: ");
   Serial.println(motor2Speed);
-
-  // Calculate deviation
-  int deviation = 0;
-
-  if (leftOuterValue < whiteThreshold) {
-    deviation = -3;  // Strong left deviation
-  } else if (leftValue < whiteThreshold) {
-    deviation = -1;  // Mild left deviation
-  } else if (rightOuterValue < whiteThreshold) {
-    deviation = 3;   // Strong right deviation
-  } else if (rightValue < whiteThreshold) {
-    deviation = 1;   // Mild right deviation
-  }
-  else {
-    deviation = 0;
-  }
-
-  motor1Speed = speed - (deviation * Kp * speed);
-  motor2Speed = speed + (deviation * Kp * speed);
 
   driveMotor();
 }
@@ -94,6 +62,30 @@ void stop(){
   Serial.println("Stopping");
 }
 
-void calculateTurn(){
+void readSensors(){
+  for (int i = 0; i < 5; i++){
+    sensorArray[i] = analogRead(analogPins[i]);
+  }
 }
 
+void calculateTurn(){
+  int deviation = 0;
+
+  if ()
+
+  if (sensorArray[4] < whiteThreshold) {
+    deviation = -3;  // Strong left deviation
+  } else if (sensorArray[3] < whiteThreshold) {
+    deviation = -1;  // Mild left deviation
+  } else if (sensorArray[0] < whiteThreshold) {
+    deviation = 3;   // Strong right deviation
+  } else if (sensorArray[1] < whiteThreshold) {
+    deviation = 1;   // Mild right deviation
+  }
+  else {
+    deviation = 0;
+  }
+
+  motor1Speed = speed - (deviation * Kp * speed);
+  motor2Speed = speed + (deviation * Kp * speed);
+}
