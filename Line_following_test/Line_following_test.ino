@@ -71,7 +71,12 @@ void readSensors(){
 void calculateTurn(){
   int deviation = 0;
 
-  if ()
+  if ((sensorArray[4] < whiteThreshold && sensorArray[3] < whiteThreshold) || (sensorArray[0] < whiteThreshold && sensorArray[1] < whiteThreshold)){
+    motor1Speed = 0;
+    motor2Speed = 0;
+    delay(1000);
+    return;
+  }
 
   if (sensorArray[4] < whiteThreshold) {
     deviation = -3;  // Strong left deviation
