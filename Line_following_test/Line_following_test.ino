@@ -72,8 +72,7 @@ void calculateTurn(){
   int deviation = 0;
 
   if (detectNode()){
-    motor1Speed = 0;
-    motor2Speed = 0;
+    stop();
     delay(1000);
   }
 
