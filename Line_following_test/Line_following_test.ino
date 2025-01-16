@@ -71,11 +71,10 @@ void readSensors(){
 void calculateTurn(){
   int deviation = 0;
 
-  if ((sensorArray[4] < whiteThreshold && sensorArray[3] < whiteThreshold) || (sensorArray[0] < whiteThreshold && sensorArray[1] < whiteThreshold)){
+  if (detectNode()){
     motor1Speed = 0;
     motor2Speed = 0;
     delay(1000);
-    return;
   }
 
   if (sensorArray[4] < whiteThreshold) {
@@ -93,4 +92,27 @@ void calculateTurn(){
 
   motor1Speed = speed - (deviation * Kp * speed);
   motor2Speed = speed + (deviation * Kp * speed);
+}
+
+bool detectNode(){
+  int whiteCount = 0;
+  
+  if(sensorArray[0] < whiteTheshold){
+    whiteCount++;
+  } 
+  if(sensorArray[1] < whiteThreshold){
+    whiteCount++;
+  } 
+  if(sensorArray[3] < whiteThreshold){
+    whiteCount++;
+  } 
+  if(sensorArray[4] < whiteThreshold){
+    whiteCount++;
+  }
+
+  if (whiteCount >= 3){
+    return true;
+  } else{
+    return false;
+  }
 }
