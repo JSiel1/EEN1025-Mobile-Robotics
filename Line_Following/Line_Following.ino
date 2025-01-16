@@ -23,20 +23,17 @@ int whiteValue = 300;       //Sensor Value over white
 int darkValue = 2500;       //Sensor valye over Black
 
 //PID Settings
-float Kp = 1.0;   //Proportional Gain
+float Kp = 30.0;   //Proportional Gain
 float Ki = 0.0;   //Integral Gain
-float Kd = 1.0;   //Derivative Gain
+float Kd = Kp*10;   //Derivative Gain
 
 //PID Variables
 float error = 0;
 float previousError = 0;
+float proportional = 0;
 float integral = 0;
 float derivative = 0;
 float PID = 0;
-
-float currentTime = 0;
-float previousTime = 0;
-float deltaTime = 0;
 
 void setup(){
   Serial.begin(9600);
@@ -56,23 +53,14 @@ void setup(){
 void loop(){
   lineDetection();
   calculatePID();
-  driveMotor();
 }
 
-void driveMotor(){
-  int motor1Speed = speed - PID;    //Change sign if turning wrong direction
-  int motor2Speed = speed + PID;    //^^
+void driveMotor(int turnSpeed){
+  int motor1Speed = speed - turnSpeed;    //Change sign if turning wrong direction
+  int motor2Speed = speed + turnSpeed;    //^^
 
   motor1Speed = constrain(motor1Speed, 0, 255);
   motor2Speed = constrain(motor2Speed, 0, 255);
-
-  //Minimum Speed to move robot
-  //if (motor1Speed < 20 && error != 0){      
-  //  motor1Speed = 20;
-  //}
-  //if (motor2Speed < 20 && error != 0){
-  //  motor2Speed = 20;
-  //}
 
   digitalWrite(motor1Phase, LOW);
   digitalWrite(motor2Phase, LOW);
@@ -103,20 +91,14 @@ void lineDetection(){
 }
 
 void calculatePID(){
-  //calculate time
-  currentTime = micros();
-  deltaTime = max((currentTime - previousTime) / 1000000.0, 0.0001);  //Delta Time converted to seconds
-  previousTime = currentTime;
-  
   //calculate PID error
   error = ((sensorArray[0] * -2) + (sensorArray[1] * -1) + (sensorArray[3] * 1) + (sensorArray[4] * 2)) / (sensorArray[0] + sensorArray[1] + sensorArray[3] + sensorArray[4] + 1);  
   
-  integral += error * deltaTime;      //Integral Error
-  derivative = (error - previousError) / deltaTime;    //Derivative Error
-  PID = (Kp * error) + (Ki * integral) + (Kd * derivative);
+  proportional = error;
+  integral += error;      //Integral Error
+  derivative = (error - previousError);    //Derivative Error
+  PID = (Kp * proportional) + (Ki * integral) + (Kd * derivative);
   
-  //if (abs(error) < 0.1 ){   //reset running integral
-  //  integral = 0;
-  //}
   previousError = error;
+  driveMotor(PID);
 }
