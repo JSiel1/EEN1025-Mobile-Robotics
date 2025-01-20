@@ -13,7 +13,7 @@ const int WHITE_THRESHOLD = 270; // Around 200 for white line
 const int BLACK_THRESHOLD = 2700; // Around 2700 for black surface
 
 // PID parameters
-float Kp = 0.01; // Proportional gain
+float Kp = 0.1; // Proportional gain
 float Ki = 0.0;  // Integral gain (set to 0 initially)
 float Kd = 0.01; // Derivative gain
 
@@ -21,7 +21,10 @@ float Pvalue = 0;
 float Ivalue = 0;
 float Dvalue = 0;
 int P, I, D = 0;
-int previousError = error;
+int previousError = 0;
+int error = 0;
+
+//Motor Speeds
 int leftSpeed = 0;
 int rightSpeed = 0;
 int baseSpeed = 120; // Base speed for the motors (0–255)
@@ -91,22 +94,25 @@ void line_following() {
   motor_drive(leftSpeed, rightSpeed);
 }
 
+
+
+//Change this if moving in wrong direction
 void motor_drive(int left, int right) {
   // Control left motor
   if (left > 0) {
-    digitalWrite(motor1Phase, HIGH); // Forward
-    analogWrite(motor1PWM, left); // PWM control
+    digitalWrite(motor1Phase, HIGH); // Forward,  change to "LOW" if moving in wrong direction
+    analogWrite(motor1PWM, left); // PWM control,   dont change this
   } else {
-    digitalWrite(motor1Phase, LOW);  // Reverse
-    analogWrite(motor1PWM, -left); // PWM control
+    digitalWrite(motor1Phase, LOW);  // Reverse, then this to "HIGH"
+    analogWrite(motor1PWM, -left); // PWM control,    dont change this
   }
 
   // Control right motor
   if (right > 0) {
-    digitalWrite(motor2Phase, HIGH); // Forward
-    analogWrite(motor2PWM, right); // PWM control
+    digitalWrite(motor2Phase, HIGH); // Forward,  Change to "LOW" if moving in wrong direction
+    analogWrite(motor2PWM, right); // PWM control,    dont change this
   } else {
-    digitalWrite(motor2Phase, LOW);  // Reverse
-    analogWrite(motor2PWM, -right); // PWM control
+    digitalWrite(motor2Phase, LOW);  // Reverse,      then this to "HIGH"
+    analogWrite(motor2PWM, -right); // PWM control,     dont change this.
   }
 }
