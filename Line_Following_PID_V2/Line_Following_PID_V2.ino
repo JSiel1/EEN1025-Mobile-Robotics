@@ -33,7 +33,7 @@ void setup() {
   pinMode(stopSensor, INPUT);
 
   for (int i = 0; i < sensorCount; i++){
-    pinMode(IR_Pins[i]);
+    pinMode(IR_Pins[i], INPUT);
   }
 
   // Start serial communication for debugging
