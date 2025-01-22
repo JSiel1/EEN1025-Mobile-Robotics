@@ -5,29 +5,30 @@
 #define motor2Phase 36  // Right motor phase
 
 // IR sensor pins (only outermost sensors are used)
-const uint8_t IR_PINS[] = {4, 5, 7, 15}; // 2 sensors on the left, 2 on the right
+const uint8_t IR_PINS[] = {4, 7, 5, 15}; // 2 sensors on the left, 2 on the right
 const uint8_t SENSOR_COUNT = 4;
+
+// Additional stop sensor pin
+#define STOP_SENSOR A0
 
 // Thresholds for white and black detection
 const int WHITE_THRESHOLD = 270; // Around 200 for white line
 const int BLACK_THRESHOLD = 2700; // Around 2700 for black surface
 
 // PID parameters
-float Kp = 0.1; // Proportional gain
+float Kp = 0.35; // Proportional gain
 float Ki = 0.0;  // Integral gain (set to 0 initially)
-float Kd = 0.01; // Derivative gain
+float Kd = 0.2;  // Derivative gain
 
 float Pvalue = 0;
 float Ivalue = 0;
 float Dvalue = 0;
-int P, I, D = 0;
 int previousError = 0;
-int error = 0;
 
-//Motor Speeds
+// Motor Speeds
 int leftSpeed = 0;
 int rightSpeed = 0;
-int baseSpeed = 120; // Base speed for the motors (0–255)
+int baseSpeed = 220; // Base speed for the motors (0–255)
 
 void setup() {
   // Set motor pins as output
@@ -36,27 +37,67 @@ void setup() {
   pinMode(motor2Phase, OUTPUT);
   pinMode(motor2PWM, OUTPUT);
 
+  // Set the stop sensor pin as input
+  pinMode(STOP_SENSOR, INPUT);
+
   // Start serial communication for debugging
   Serial.begin(115200);
+
+  // Initial test to verify motor function
+  //motor_drive(100, 100); // Drive both motors forward
+ // delay(1000);           // Move for 2 seconds
+ // motor_drive(0, 0);     // Stop motors
 }
 
 void loop() {
+  // Debugging: Check stop sensor value
+  int stopSensorValue = analogRead(STOP_SENSOR);
+  Serial.print("Stop Sensor Value (inverted): ");
+  Serial.println(4095 - stopSensorValue); // Inverted value for debugging
+
+  // Check the additional sensor (inverted)
+  if ((4095 - stopSensorValue) < 1800) { // Replace 500 with appropriate threshold
+    // Turn the robot 180 degrees
+    motor_drive(-baseSpeed, baseSpeed); // Rotate in place
+    delay(600);                        // Adjust delay for a 180-degree turn
+    motor_drive(0, 0);                  // Stop after turning
+    delay(100);                         // Short pause before resuming
+    return;                             // Skip the rest of the loop iteration
+}
+
+
+  // Perform line following
   line_following();
 }
 
 void line_following() {
-  // Read sensor values
+  // Read and debug sensor values
   int sensorValues[SENSOR_COUNT];
   for (uint8_t i = 0; i < SENSOR_COUNT; i++) {
     sensorValues[i] = analogRead(IR_PINS[i]);
+    Serial.print("Sensor ");
+    Serial.print(i);
+    Serial.print(": ");
+    Serial.println(sensorValues[i]);
+  }
+
+  // Check for node detection (3 or more sensors detecting white)
+  if (detectNode(sensorValues)) {
+    motor_drive(0, 0); // Stop the robot
+    delay(100);        // Wait for 0.1 seconds
+    motor_drive(80, 80); // Drive forward at low speed
+    delay(200);          // Move slightly forward to cross the line
+    motor_drive(0, 0);   // Stop again
+    delay(1000);         // Wait for 1 second before resuming
+    return;              // Skip the rest of the loop iteration
   }
 
   // Calculate the position of the line (weighted average method using outer sensors)
-  // Assign weights based on sensor positions: Leftmost = -2000, Left inner = -1000, Right inner = +1000, Rightmost = +2000
   int weights[] = {-2000, -1000, 1000, 2000};
   int position = 0;
   int total = 0;
 
+  
   for (uint8_t i = 0; i < SENSOR_COUNT; i++) {
     position += sensorValues[i] * weights[i];
     total += sensorValues[i];
@@ -68,23 +109,29 @@ void line_following() {
   }
 
   // Calculate error (target is position 0, the center)
-  error = 0 - position;
+  int error = 0 - position;
 
   // PID calculations
-  P = error;
+  int P = error;
+  static int I = 0;
+  int D = error - previousError;
+
   I += error;
-  D = error - previousError;
 
-  Pvalue = Kp * P;
-  Ivalue = Ki * I;
-  Dvalue = Kd * D;
-
-  float PIDvalue = Pvalue + Ivalue + Dvalue;
+  float PIDvalue = P*Kp + I*Ki + D*Kd;
   previousError = error;
 
-  // Calculate motor speeds
-  leftSpeed = baseSpeed - PIDvalue;
-  rightSpeed = baseSpeed + PIDvalue;
+  // Check outer sensors for sharp turns
+  if (sensorValues[0] < WHITE_THRESHOLD) {
+    leftSpeed = 0;
+    rightSpeed = baseSpeed;
+  } else if (sensorValues[3] < WHITE_THRESHOLD) {
+    leftSpeed = baseSpeed;
+    rightSpeed = 0;
+  } else {
+    leftSpeed = baseSpeed - PIDvalue;
+    rightSpeed = baseSpeed + PIDvalue;
+  }
 
   // Constrain motor speeds
   leftSpeed = constrain(leftSpeed, 0, 255);
@@ -94,25 +141,48 @@ void line_following() {
   motor_drive(leftSpeed, rightSpeed);
 }
 
+// Detect node (3 or more sensors detecting white)
+bool detectNode(int sensorValues[]) {
+  int whiteCount = 0;
+  for (uint8_t i = 0; i < SENSOR_COUNT; i++) {
+    if (sensorValues[i] < WHITE_THRESHOLD) {
+      whiteCount++;
+    }
+  }
+  return (whiteCount >= 3); // Node detected if 3 or more sensors see white
+}
 
-
-//Change this if moving in wrong direction
+// Motor drive function
 void motor_drive(int left, int right) {
-  // Control left motor
   if (left > 0) {
-    digitalWrite(motor1Phase, HIGH); // Forward,  change to "LOW" if moving in wrong direction
-    analogWrite(motor1PWM, left); // PWM control,   dont change this
+    digitalWrite(motor1Phase, LOW);
+    analogWrite(motor1PWM, left);
   } else {
-    digitalWrite(motor1Phase, LOW);  // Reverse, then this to "HIGH"
-    analogWrite(motor1PWM, -left); // PWM control,    dont change this
+    digitalWrite(motor1Phase, HIGH);
+    analogWrite(motor1PWM, -left);
   }
 
-  // Control right motor
   if (right > 0) {
-    digitalWrite(motor2Phase, HIGH); // Forward,  Change to "LOW" if moving in wrong direction
-    analogWrite(motor2PWM, right); // PWM control,    dont change this
+    digitalWrite(motor2Phase, LOW);
+    analogWrite(motor2PWM, right);
   } else {
-    digitalWrite(motor2Phase, LOW);  // Reverse,      then this to "HIGH"
-    analogWrite(motor2PWM, -right); // PWM control,     dont change this.
+    digitalWrite(motor2Phase, HIGH);
+    analogWrite(motor2PWM, -right);
   }
+}
+
+void left() {
+  motor_drive(-baseSpeed, baseSpeed); // Rotate in place
+  delay(300);
+  motor_drive(0, 0);                  // Stop after turning
+  delay(100);
+  return;
+}
+
+void right() {
+  motor_drive(baseSpeed, -baseSpeed); // Rotate in place
+  delay(300);
+  motor_drive(0, 0);                  // Stop after turning
+  delay(100);
+  return;
 }
