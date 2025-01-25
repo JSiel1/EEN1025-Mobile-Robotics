@@ -1,3 +1,13 @@
+/*************************************************
+* File Name:        [Line_Following_PID]
+* Description:      [Full PID control for line following robot with stopping sensor]
+* Author:           [Group 14]
+* Created On:       [21/01/2025]
+* Last Modified On: [25/01/2025]
+* Version:          [2.0]
+* Last Changes:     []
+*************************************************/
+
 // Motor pins
 #define motor1PWM 37  // Left motor PWM
 #define motor1Phase 38  // Left motor phase
