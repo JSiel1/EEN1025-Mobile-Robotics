@@ -1,13 +1,14 @@
 # Mobile Robotics - Group 14  
 ---
 ## Features:
-4 sensor Line Following.
+Full PID Line Following.
 
 
 ## Instructions:
 - Control motor speed with "speed". (Default = 120).
 
-- "Kp" controls level of turning speed. (Lower means lower turn speed).
+- "Kp" controls level of turning speed.
+- "Kd" controls level of damping.
 
 
 ## Members:
