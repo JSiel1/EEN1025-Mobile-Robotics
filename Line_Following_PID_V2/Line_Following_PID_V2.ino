@@ -5,7 +5,7 @@
 * Created On:       [21/01/2025]
 * Last Modified On: [25/01/2025]
 * Version:          [2.0]
-* Last Changes:     []
+* Last Changes:     [Fixed issues]
 *************************************************/
 
 // Motor pins
@@ -18,10 +18,12 @@
 // IR sensor pins 
 const uint8_t IR_Pins[] = {4, 7, 5, 15}; // 2 sensors on the left, 2 on the right
 const uint8_t sensorCount = 4;
+const int sensorWeights[] = {-2000, -1000, 1000, 2000};
 
 //Line detection Sensitivity
 const int whiteThreshold = 270; // Around 200 for white line
 const int blackThreshold = 2700; // Around 2700 for black surface
+const int obstacleThreshold = 1800;
 
 // PID parameters
 float Kp = 0.35; // Proportional gain
@@ -33,6 +35,11 @@ int previousError = 0;
 int leftSpeed = 0;
 int rightSpeed = 0;
 int baseSpeed = 220; // Base speed for the motors (0–255)
+
+//Node detection settings
+const int forwardDelay = 200;
+const int stopDelay = 1000;
+const int rotationTime = 600;
 
 void setup() {
   // Pin Initialisation
@@ -46,7 +53,6 @@ void setup() {
     pinMode(IR_Pins[i], INPUT);
   }
 
-  // Start serial communication for debugging
   Serial.begin(9600);
 }
 
@@ -70,38 +76,39 @@ void line_following() {
 
   // Check for node detection
   if (detectNode(sensorValues)) {
-    motor_drive(0, 0);
-    delay(100);
-    motor_drive(80, 80);
-    delay(200);          // Move slightly forward to cross the line
-    motor_drive(0, 0);
-    delay(1000);
+    driveMotor(0, 0);           //Stop on the line
+    delay(100);                   
+    driveMotor(80, 80);
+    delay(forwardDelay);          // Move slightly forward to cross the line
+    driveMotor(0, 0);
+    delay(stopDelay);                  //wait before continuing
     return;
   }
 
   // Calculate the position of the line
-  int weights[] = {-2000, -1000, 1000, 2000};
   int position = 0;
   int total = 0;
 
 
   for (uint8_t i = 0; i < sensorCount; i++) {
-    position += sensorValues[i] * weights[i];
+    position += sensorValues[i] * sensorWeights[i];
     total += sensorValues[i];
   }
 
   // Avoid division by zero and calculate position
   if (total != 0) {
     position /= total;
+  } else {
+    position = 0;     //Default to centre
   }
 
   // Calculate error from line
-  int error = 0 - position;
+  float error = 0 - position;
 
   // PID calculations
-  int P = error;
-  static int I = 0;
-  int D = error - previousError;
+  float P = error;
+  static float I = 0;
+  float D = error - previousError;
 
   I += error;
 
@@ -121,13 +128,13 @@ void line_following() {
   }
 
   // Drive motors
-  motor_drive(leftSpeed, rightSpeed);
+  driveMotor(leftSpeed, rightSpeed);
 }
 
 // Detect node (3 or more sensors detecting white)
 bool detectNode(int sensorValues[]) {
   int whiteCount = 0;
-  for (uint8_t i = 0; i < sensorCount; i++) {
+  for (int i = 0; i < sensorCount && whiteCount < 3; i++) {
     if (sensorValues[i] < whiteThreshold) {
       whiteCount++;
     }
@@ -136,10 +143,10 @@ bool detectNode(int sensorValues[]) {
 }
 
 // Motor drive function
-void motor_drive(int left, int right) {
+void driveMotor(int left, int right) {
   //limit speed
-  left = constrain(left, 0, 255);
-  right = constrain(right, 0, 255);
+  left = constrain(left, -255, 255);
+  right = constrain(right, -255, 255);
 
   if (left > 0) {
     digitalWrite(motor1Phase, LOW);
@@ -159,17 +166,17 @@ void motor_drive(int left, int right) {
 }
 
 void left() {
-  motor_drive(-baseSpeed, baseSpeed); // Rotate in place
+  driveMotor(-baseSpeed, baseSpeed); // Rotate in place
   delay(300);
-  motor_drive(0, 0);                  // Stop after turning
+  driveMotor(0, 0);                  // Stop after turning
   delay(100);
   return;
 }
 
 void right() {
-  motor_drive(baseSpeed, -baseSpeed); // Rotate in place
+  driveMotor(baseSpeed, -baseSpeed); // Rotate in place
   delay(300);
-  motor_drive(0, 0);                  // Stop after turning
+  driveMotor(0, 0);                  // Stop after turning
   delay(100);
   return;
 }
@@ -177,14 +184,13 @@ void right() {
 void obstacleDetection(){
   // Debugging: Check stop sensor value
   int stopSensorValue = analogRead(stopSensor);
-  Serial.print("Stop Sensor Value (inverted): ");
-  Serial.println(4095 - stopSensorValue); // Inverted value for debugging
+  Serial.print("Stop Sensor Value: ");
+  Serial.println(4095 - stopSensorValue);
 
-  //
-  if ((4095 - stopSensorValue) < 1800) {
-    motor_drive(-baseSpeed, baseSpeed);   //rotate 180 degrees
-    delay(600);
-    motor_drive(0, 0);
+  if ((4095 - stopSensorValue) < obstacleThreshold) {
+    driveMotor(-baseSpeed, baseSpeed);   //rotate 180 degrees
+    delay(rotationTime);
+    driveMotor(0, 0);
     delay(100);
     return;
   }
