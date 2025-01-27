@@ -3,9 +3,9 @@
 * Description:      [Full PID control for line following robot with stopping sensor]
 * Author:           [Group 14]
 * Created On:       [21/01/2025]
-* Last Modified On: [25/01/2025]
+* Last Modified On: [26/01/2025]
 * Version:          [2.0]
-* Last Changes:     [Fixed issues]
+* Last Changes:     [Added Stop Delay Variable]
 *************************************************/
 
 // Motor pins
@@ -76,11 +76,10 @@ void line_following() {
 
   // Check for node detection
   if (detectNode(sensorValues)) {
-    driveMotor(0, 0);           //Stop on the line
-    delay(100);                   
-    driveMotor(80, 80);
-    delay(forwardDelay);          // Move slightly forward to cross the line
-    driveMotor(0, 0);
+    driveMotor(0, 0);           //Stop on the line                   
+    driveMotor(80, 80);         // Move slightly forward to cross the line
+    delay(forwardDelay);          
+    driveMotor(0, 0);         
     delay(stopDelay);                  //wait before continuing
     return;
   }
