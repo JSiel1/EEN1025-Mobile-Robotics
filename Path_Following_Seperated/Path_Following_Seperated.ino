@@ -1,5 +1,16 @@
+// Pre-Defined variables ( Don't merge)
+#define motor1PWM 37
+#define motor1Phase 38
+#define motor2PWM 35
+#define motor2Phase 36
+
 const int turningTime = 300;
 const int baseSpeed = 120;
+
+const int whiteThreshold = 500;
+const uint8_t IR_Pins[] = {4, 7, 5, 15};
+const int sensorCount = 4;
+//-----------------------------------------------------------
 
 // Adjacency Matrix: -1 means no path
 const int nodeCount = 8; // Number of nodes
@@ -15,15 +26,14 @@ const int adjacencyList[nodeCount][3] = {
 };
 
 // Path Following vairables
-int currentPosition = path[0];
-int currentPathIndex = 0;
 const int path[] = {0, 6, 2, 3};
 const int pathLength = sizeof(path) / sizeof(path[0]);
+int currentPosition = path[0];
+int currentPathIndex = 0;
 
 bool forwardDirection = true;   //Start with forward direction
 
 //Sensor variables
-const int sensorCount = 4;
 int sensorValues[sensorCount];    //Senor readings
 
 //-----------------------------------------------------------------------
@@ -113,7 +123,7 @@ void followPath(){
 }
 
 //------------------------------------------------------------------------------
-//Already Defined Functions
+//Already Defined Functions (Don't merge)
 
 bool detectNode() {
   int whiteCount = 0;
