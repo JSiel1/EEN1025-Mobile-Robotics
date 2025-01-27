@@ -27,7 +27,7 @@ void loop() {
 }
 //-----------------------------------------------------------------------
 
-// Function to get the next direction (Back=0, Straight=1, Left=2)
+// Function to get the next direction (Reverse=0, Forward=1, Left=2)
 int getNextDirection(int currentNode, int targetNode) {
   for (int direction = 0; direction < 3; direction++) {
     if (adjacencyList[currentNode][direction] == targetNode) {
@@ -37,7 +37,6 @@ int getNextDirection(int currentNode, int targetNode) {
   return -1; // Invalid path
 }
 
-// Function to navigate the robot based on the direction
 void navigatePath() {
   int currentNode = path[0]; // Start at the first node
 
@@ -55,7 +54,7 @@ void navigatePath() {
 
     // Perform actions based on the direction
     switch (direction) {
-      case 0: // Back
+      case 0: // reverse
         left(); left(); // 180-degree turn
         break;
       case 1: // Straight
@@ -64,6 +63,9 @@ void navigatePath() {
         break;
       case 2: // Left
         left();
+        break;
+      case 3:
+        right();
         break;
     }
 
