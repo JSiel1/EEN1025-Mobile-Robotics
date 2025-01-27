@@ -1,11 +1,11 @@
 /*************************************************
-* File Name:        [Line_Following_PID]
+* File Name:        [followLine_PID]
 * Description:      [Full PID control for line following robot with stopping sensor]
 * Author:           [Group 14]
 * Created On:       [21/01/2025]
 * Last Modified On: [26/01/2025]
 * Version:          [2.0]
-* Last Changes:     [Added Stop Delay Variable]
+* Last Changes:     [Added turning time Variable]
 *************************************************/
 
 // Motor pins
@@ -37,9 +37,10 @@ int rightSpeed = 0;
 int baseSpeed = 220; // Base speed for the motors (0–255)
 
 //Node detection settings
-const int forwardDelay = 200;
-const int stopDelay = 1000;
-const int rotationTime = 600;
+const int forwardDelay = 200;   // Time to move across line slightly
+const int stopDelay = 1000;     // Stopping Time at node
+const int rotationTime = 600;   // Time to turn 180 degrees
+const int turningTime = 300;    // Time to make a 90 degree turn 
 
 void setup() {
   // Pin Initialisation
@@ -60,10 +61,10 @@ void loop() {
   // Check for obstacles
   obstacleDetection();
   // Perform line following
-  line_following();
+  followLine();
 }
 
-void line_following() {
+void followLine() {
   // Read and debug sensor values
   int sensorValues[sensorCount];
   for (uint8_t i = 0; i < sensorCount; i++) {
