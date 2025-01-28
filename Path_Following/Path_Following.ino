@@ -1,47 +1,40 @@
 /*************************************************
-* File Name:        [followLine_PID]
+* File Name:        [LineFollowingPID]
 * Description:      [Full PID control for line following robot with stopping sensor]
 * Author:           [Group 14]
 * Created On:       [21/01/2025]
 * Last Modified On: [26/01/2025]
-* Version:          [2.0]
+* Version:          [2.5]
 * Last Changes:     [Added turning time Variable]
 *************************************************/
 
 // Motor pins
-#define motor1PWM 37  // Left motor PWM
+#define motor1PWM 37  // Left motor enable (PWM)
 #define motor1Phase 38  // Left motor phase
-#define motor2PWM 35  // Right motor PWM
+#define motor2PWM 35  // Right motor enable (PWM)
 #define motor2Phase 36  // Right motor phase
-#define stopSensor A0  // Distance sensor 
+#define stopSensor 1
 
-// IR sensor pins 
-const uint8_t IR_Pins[] = {4, 7, 5, 15}; // 2 sensors on the left, 2 on the right
-const uint8_t sensorCount = 4;
-const int sensorWeights[] = {-2000, -1000, 1000, 2000};
-int sensorValues[sensorCount];      //Senor readings
+// IR sensor pins (only outermost sensors are used)
+const int IR_PINS[] = {4, 7, 5, 15}; // 2 sensors on the left, 2 on the right
+const int sensorCount = 4;
+int weights[] = {-2000, -1000, 1000, 2000};
+int sensorValues[sensorCount];
 
 //Line detection Sensitivity
 const int whiteThreshold = 270; // Around 200 for white line
 const int blackThreshold = 2700; // Around 2700 for black surface
-const int obstacleThreshold = 1800;
+const int obstacleThreshold = 1100;  //Obstacle Sensitivity
 
 // PID parameters
 float Kp = 0.35; // Proportional gain
-float Ki = 0.0;  // Integral gain
+float Ki = 0.0;  // Integral gain (set to 0 initially)
 float Kd = 0.2;  // Derivative gain
+
+float Pvalue = 0;
+float Ivalue = 0;
+float Dvalue = 0;
 int previousError = 0;
-
-// Motor Speeds
-int leftSpeed = 0;
-int rightSpeed = 0;
-int baseSpeed = 220; // Base speed for the motors (0–255)
-
-//Node detection settings
-const int forwardDelay = 200;   // Time to move across line slightly
-const int stopDelay = 1000;     // Stopping Time at node
-const int rotationTime = 600;   // Time to turn 180 degrees
-const int turningTime = 300;    // Time to make a 90 degree turn 
 
 // Adjacency Matrix: -1 means no path
 const int nodeCount = 8; // Number of nodes
@@ -64,35 +57,63 @@ int currentPathIndex = 0;
 
 bool forwardDirection = true;   //Start with forward direction
 
+
+// Motor Speeds
+int leftSpeed = 0;
+int rightSpeed = 0;
+int baseSpeed = 220; // Base speed for the motors (0–255)
+
+//Node detection settings
+const int forwardDelay = 200;   // Time to move across line slightly
+const int stopDelay = 1000;     // Stopping Time at node
+const int rotationTime = 600;   // Time to turn 180 degrees
+const int turningTime = 300;    // Time to make a 90 degree turn 
+
+
 void setup() {
-  // Pin Initialisation
+  // Set motor pins as output
   pinMode(motor1Phase, OUTPUT);
   pinMode(motor1PWM, OUTPUT);
   pinMode(motor2Phase, OUTPUT);
   pinMode(motor2PWM, OUTPUT);
-  pinMode(stopSensor, INPUT);
 
+  pinMode(stopSensor, INPUT);
   for (int i = 0; i < sensorCount; i++){
-    pinMode(IR_Pins[i], INPUT);
+    pinMode(IR_PINS[i], INPUT);
   }
 
-  Serial.begin(9600);
+  // Start serial communication for debugging
+  Serial.begin(115200);
+
 }
 
 void loop() {
-  readLineSensors();
-  followPath();
+
+  obstacleDetection();
+  // Perform line following
   followLine();
 }
 
 void followLine() {
-  // Calculate the position of the line
+  // Read and debug sensor values
+  readLineSensors();
+  // Check for node detection 
+  if (detectNode()) {
+    driveMotor(0, 0); // Stop the robot
+    delay(100);        // Wait for 0.1 seconds
+    driveMotor(80, 80); // Drive forward at low speed
+    delay(200);          // Move slightly forward to cross the line
+    driveMotor(0, 0);   // Stop again
+    delay(1000);         // Wait for 1 second before resuming
+    return;              // Skip the rest of the loop iteration
+  }
+
+  // Calculate the position of the line (weighted average method using outer sensors)
   int position = 0;
   int total = 0;
 
-
-  for (uint8_t i = 0; i < sensorCount; i++) {
-    position += sensorValues[i] * sensorWeights[i];
+  for (int i = 0; i < sensorCount; i++) {
+    position += sensorValues[i] * weights[i];
     total += sensorValues[i];
   }
 
@@ -100,20 +121,23 @@ void followLine() {
   if (total != 0) {
     position /= total;
   } else {
-    position = 0;     //Default to centre
+    position = 0;
   }
 
-  // Calculate error from line
-  float error = 0 - position;
+  // Calculate error (target is position 0, the center)
+  int error = 0 - position;
 
   // PID calculations
-  float P = error;
-  static float I = 0;
-  float D = error - previousError;
+  int P = error;
+  static int I = 0;
+  int D = error - previousError;
 
+  Pvalue = Kp * P;
   I += error;
+  Ivalue = Ki * I;
+  Dvalue = Kd * D;
 
-  float PIDvalue = P*Kp + I*Ki + D*Kd;
+  float PIDvalue = Pvalue + Ivalue + Dvalue;
   previousError = error;
 
   // Check outer sensors for sharp turns
@@ -128,6 +152,10 @@ void followLine() {
     rightSpeed = baseSpeed + PIDvalue;
   }
 
+  // Constrain motor speeds
+  leftSpeed = constrain(leftSpeed, 0, 255);
+  rightSpeed = constrain(rightSpeed, 0, 255);
+
   // Drive motors
   driveMotor(leftSpeed, rightSpeed);
 }
@@ -135,7 +163,7 @@ void followLine() {
 // Detect node (3 or more sensors detecting white)
 bool detectNode() {
   int whiteCount = 0;
-  for (int i = 0; i < sensorCount && whiteCount < 3; i++) {
+  for (int i = 0; i < sensorCount; i++) {
     if (sensorValues[i] < whiteThreshold) {
       whiteCount++;
     }
@@ -143,12 +171,15 @@ bool detectNode() {
   return (whiteCount >= 3); // Node detected if 3 or more sensors see white
 }
 
+void readLineSensors(){
+  // Read and debug sensor values
+  for (int i = 0; i < sensorCount; i++) {
+    sensorValues[i] = analogRead(IR_PINS[i]);
+  }
+}
+
 // Motor drive function
 void driveMotor(int left, int right) {
-  //limit speed
-  left = constrain(left, -255, 255);
-  right = constrain(right, -255, 255);
-
   if (left > 0) {
     digitalWrite(motor1Phase, LOW);
     analogWrite(motor1PWM, left);
@@ -168,18 +199,20 @@ void driveMotor(int left, int right) {
 
 void left() {
   driveMotor(-baseSpeed, baseSpeed); // Rotate in place
-  delay(300);
+  delay(300);                        // Adjust delay for a 180-degree turn
   driveMotor(0, 0);                  // Stop after turning
-  delay(100);
+  delay(100);                         // Short pause before resuming
   return;
+
 }
 
 void right() {
   driveMotor(baseSpeed, -baseSpeed); // Rotate in place
-  delay(300);
+  delay(300);                        // Adjust delay for a 180-degree turn
   driveMotor(0, 0);                  // Stop after turning
-  delay(100);
+  delay(100);                         // Short pause before resuming
   return;
+
 }
 
 void obstacleDetection(){
@@ -197,19 +230,16 @@ void obstacleDetection(){
   }
 }
 
-// Read current Sensor values
-void readLineSensors() {
-  for (int i = 0; i < sensorCount; i++) {
-    sensorValues[i] = analogRead(IR_Pins[i]); 
-    //debug
-    //Serial.print("Sensor ");
-    //Serial.print(i);
-    //Serial.print(": ");
-    //Serial.println(sensorValues[i]);
+// Function to get the next direction (Reverse=0, Forward=1, Left=2)
+int getNextDirection(int currentNode, int targetPosition) {
+  for (int direction = 0; direction < 3; direction++) {
+    if (adjacencyList[currentNode][direction] == targetPosition) {
+      return direction; // Return the direction index
+    }
   }
+  return -1; // Invalid path
 }
 
-//Move mobot based on direction
 void choosePath(int direction){
   switch (direction) {
     case 0:                       // reverse
@@ -236,7 +266,6 @@ void choosePath(int direction){
 void followPath(){
   if (detectNode()){
     driveMotor(0, 0);           //Stop on the line
-    delay(stopDelay);
 
     //Check if mobot is at the end of path
     if (currentPathIndex >= pathLength - 1) {
@@ -259,14 +288,4 @@ void followPath(){
       Serial.println("Error: No valid path found");
     }
   }
-}
-
-// Function to get the next direction (Reverse=0, Forward=1, Left=2)
-int getNextDirection(int currentNode, int targetPosition) {
-  for (int direction = 0; direction < 3; direction++) {
-    if (adjacencyList[currentNode][direction] == targetPosition) {
-      return direction; // Return the direction index
-    }
-  }
-  return -1; // Invalid path
 }
