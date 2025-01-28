@@ -1,23 +1,23 @@
 /*************************************************
-* File Name:        [followLine_PID]
+* File Name:        [LineFollowingPID]
 * Description:      [Full PID control for line following robot with stopping sensor]
 * Author:           [Group 14]
 * Created On:       [21/01/2025]
 * Last Modified On: [26/01/2025]
-* Version:          [2.0]
+* Version:          [2.5]
 * Last Changes:     [Added turning time Variable]
 *************************************************/
 
 // Motor pins
-#define motor1PWM 37  // Left motor PWM
+#define motor1PWM 37  // Left motor enable (PWM)
 #define motor1Phase 38  // Left motor phase
-#define motor2PWM 35  // Right motor PWM
+#define motor2PWM 35  // Right motor enable (PWM)
 #define motor2Phase 36  // Right motor phase
-#define stopSensor 1  // Distance sensor 
+#define stopSensor 1
 
-// IR sensor pins 
-const uint8_t IR_Pins[] = {4, 7, 5, 15}; // 2 sensors on the left, 2 on the right
-const uint8_t sensorCount = 4;
+// IR sensor pins (only outermost sensors are used)
+const int IR_PINS[] = {4, 7, 5, 15}; // 2 sensors on the left, 2 on the right
+const int sensorCount = 4;
 
 //Line detection Sensitivity
 const int whiteThreshold = 270; // Around 200 for white line
@@ -26,7 +26,7 @@ const int obstacleThreshold = 1800;
 
 // PID parameters
 float Kp = 0.35; // Proportional gain
-float Ki = 0.0;  // Integral gain
+float Ki = 0.0;  // Integral gain (set to 0 initially)
 float Kd = 0.2;  // Derivative gain
 
 float Pvalue = 0;
@@ -45,24 +45,26 @@ const int stopDelay = 1000;     // Stopping Time at node
 const int rotationTime = 600;   // Time to turn 180 degrees
 const int turningTime = 300;    // Time to make a 90 degree turn 
 
+
 void setup() {
-  // Pin Initialisation
+  // Set motor pins as output
   pinMode(motor1Phase, OUTPUT);
   pinMode(motor1PWM, OUTPUT);
   pinMode(motor2Phase, OUTPUT);
   pinMode(motor2PWM, OUTPUT);
+
   pinMode(stopSensor, INPUT);
+  for (int i = 0; i < sensorCount; i++){
+    pinMode(IR_PINS[i], INPUT);
+  }
 
-  //for (int i = 0; i < sensorCount; i++){
-  //  pinMode(IR_Pins[i], INPUT);
-  //}
+  // Start serial communication for debugging
+  Serial.begin(115200);
 
-  Serial.begin(9600);
 }
 
 void loop() {
-  // Check for obstacles
-  //obstacleDetection();
+  obstacleDetection();
   // Perform line following
   followLine();
 }
@@ -70,42 +72,43 @@ void loop() {
 void followLine() {
   // Read and debug sensor values
   int sensorValues[sensorCount];
-  for (uint8_t i = 0; i < sensorCount; i++) {
-    sensorValues[i] = analogRead(IR_Pins[i]);
+  for (int i = 0; i < sensorCount; i++) {
+    sensorValues[i] = analogRead(IR_PINS[i]);
     Serial.print("Sensor ");
     Serial.print(i);
     Serial.print(": ");
     Serial.println(sensorValues[i]);
   }
 
-  // Check for node detection
+  // Check for node detection 
   if (detectNode(sensorValues)) {
-    driveMotor(0, 0);           //Stop on the line
-    delay(100);                   
-    driveMotor(80, 80);         // Move slightly forward to cross the line
-    delay(forwardDelay);          
-    driveMotor(0, 0);         
-    delay(stopDelay);                  //wait before continuing
-    return;
+    driveMotor(0, 0); // Stop the robot
+    delay(100);        // Wait for 0.1 seconds
+    driveMotor(80, 80); // Drive forward at low speed
+    delay(200);          // Move slightly forward to cross the line
+    driveMotor(0, 0);   // Stop again
+    delay(1000);         // Wait for 1 second before resuming
+    return;              // Skip the rest of the loop iteration
   }
 
-  // Calculate the position of the line
-  int sensorWeights[] = {-2000, -1000, 1000, 2000};
+  // Calculate the position of the line (weighted average method using outer sensors)
+  int weights[] = {-2000, -1000, 1000, 2000};
   int position = 0;
   int total = 0;
 
-
-  for (uint8_t i = 0; i < sensorCount; i++) {
-    position += sensorValues[i] * sensorWeights[i];
+  for (int i = 0; i < sensorCount; i++) {
+    position += sensorValues[i] * weights[i];
     total += sensorValues[i];
   }
 
   // Avoid division by zero and calculate position
   if (total != 0) {
     position /= total;
+  } else {
+    position = 0;
   }
 
-  // Calculate error
+  // Calculate error (target is position 0, the center)
   int error = 0 - position;
 
   // PID calculations
@@ -144,7 +147,7 @@ void followLine() {
 // Detect node (3 or more sensors detecting white)
 bool detectNode(int sensorValues[]) {
   int whiteCount = 0;
-  for (int i = 0; i < sensorCount && whiteCount < 3; i++) {
+  for (uint8_t i = 0; i < sensorCount; i++) {
     if (sensorValues[i] < whiteThreshold) {
       whiteCount++;
     }
@@ -154,10 +157,6 @@ bool detectNode(int sensorValues[]) {
 
 // Motor drive function
 void driveMotor(int left, int right) {
-  //limit speed
-  //left = constrain(left, -255, 255);
-  //right = constrain(right, -255, 255);
-
   if (left > 0) {
     digitalWrite(motor1Phase, LOW);
     analogWrite(motor1PWM, left);
@@ -176,19 +175,21 @@ void driveMotor(int left, int right) {
 }
 
 void left() {
-  driveMotor(-baseSpeed, baseSpeed); // Rotate in place
-  delay(300);
-  driveMotor(0, 0);                  // Stop after turning
-  delay(100);
-  return;
+driveMotor(-baseSpeed, baseSpeed); // Rotate in place
+    delay(300);                        // Adjust delay for a 180-degree turn
+    driveMotor(0, 0);                  // Stop after turning
+    delay(100);                         // Short pause before resuming
+    return;
+
 }
 
 void right() {
-  driveMotor(baseSpeed, -baseSpeed); // Rotate in place
-  delay(300);
-  driveMotor(0, 0);                  // Stop after turning
-  delay(100);
-  return;
+driveMotor(baseSpeed, -baseSpeed); // Rotate in place
+    delay(300);                        // Adjust delay for a 180-degree turn
+    driveMotor(0, 0);                  // Stop after turning
+    delay(100);                         // Short pause before resuming
+    return;
+
 }
 
 void obstacleDetection(){
