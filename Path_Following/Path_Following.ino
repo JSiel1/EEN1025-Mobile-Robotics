@@ -18,7 +18,7 @@
 // Motor Speeds
 int leftSpeed = 0;
 int rightSpeed = 0;
-int baseSpeed = 170; // Base speed for the motors (0–255)
+int baseSpeed = 220; // Base speed for the motors (0–255)
 
 // IR sensor pins (only outermost sensors are used)
 const int IR_PINS[] = {4, 7, 5, 15}; // 2 sensors on the left, 2 on the right
@@ -32,9 +32,9 @@ const int blackThreshold = 2700; // Around 2700 for black surface
 const int obstacleThreshold = 1100;  //Obstacle Sensitivity
 
 // PID parameters
-float Kp = 0.35; // Proportional gain
+float Kp = 0.5; // Proportional gain (0.35)
 float Ki = 0.0;  // Integral gain (set to 0 initially)
-float Kd = 0.3;  // Derivative gain
+float Kd = 0.3;  // Derivative gain   (0.2)
 
 float Pvalue = 0;
 float Ivalue = 0;
@@ -51,16 +51,17 @@ const int adjacencyList[nodeCount][3] = {
   { 7, 0, -1 },     // Node 4: {Back=7, Straight=0, Left=NONE}
   { -1, -1, -1 },   // Node 5: {Back=NONE, Straight=NONE, Left=NONE}
   { 0, 2, 1 },      // Node 6: {Back=0, Straight=2, Left=1}
-  { 1, 5, 4 }       // Node 7: {Back=3, Straight=4, Left=1}
+  { 3, 4, 1 }       // Node 7: {Back=3, Straight=4, Left=1}
 };
 
 // Path Following vairables
-const int path[] = {0, 6, 1, 6, 1};
+const int path[] = {0, 6, 1, 6, 2, 3, 7, 4, 7, 1};
 const int pathLength = sizeof(path) / sizeof(path[0]);
 int currentPosition = path[0];
 int currentPathIndex = 0;
 
 bool forwardDirection = true;   //Start with forward direction
+int lastPosition = -1;
 
 //Node detection settings
 const int forwardDelay = 200;   // Time to move across line slightly
@@ -226,21 +227,10 @@ void obstacleDetection(){
   }
 }
 
-// Function to get the next direction (Reverse=0, Forward=1, Left=2)
-int getNextDirection(int currentNode, int targetPosition) {
-  for (int direction = 0; direction < 3; direction++) {
-    if (adjacencyList[currentNode][direction] == targetPosition) {
-      return direction; // Return the direction index
-    }
-  }
-  return -1; // Invalid path
-}
-
 void choosePath(int direction){
   switch (direction) {
     case 0:                       // reverse
       left(); left();                         // 180-degree turn
-      forwardDirection = !forwardDirection;   //Switch direction
       break;
     case 1:                                   // Straight
       driveMotor(baseSpeed, baseSpeed);
@@ -251,6 +241,9 @@ void choosePath(int direction){
       break;
     case 3:
       right();
+      if (forwardDirection) {
+        forwardDirection = false;
+      }
       break;
     default:
       Serial.println("Error: Direction Invalid");
@@ -266,6 +259,8 @@ void followPath(){
     //Check if mobot is at the end of path
     if (currentPathIndex >= pathLength - 1) {
       Serial.println("Path complete");
+      driveMotor(-220, 220);
+      delay(1000);
       while (true) {
         driveMotor(0, 0);
       }
@@ -273,11 +268,12 @@ void followPath(){
 
     // Get next position and direction
     int nextPosition = path[currentPathIndex + 1];
-    int direction = getNextDirection(currentPosition, nextPosition);
+    int direction = getDynamicDirection(currentPosition, nextPosition, lastPosition);
 
     // Check if Direction is valid
     if (direction != -1) {
       choosePath(direction);
+      lastPosition = currentPosition;
       currentPosition = nextPosition;
       currentPathIndex++;
     } else {
@@ -286,4 +282,62 @@ void followPath(){
   } else {
     return;
   }
+}
+
+int getDynamicDirection(int currentNode, int targetPosition, int lastPosition) {
+  // Handle dynamic mapping for Node 6
+  if (currentNode == 6) {
+    if (lastPosition == 1) {
+      // Entering Node 6 from Node 1
+      if (targetPosition == 2) return 2; // Left -> Node 2
+      if (targetPosition == 0) {
+        forwardDirection == !forwardDirection;
+        return 3; // Right -> Node 0
+      }
+      if (targetPosition == 1) return 0; // Back -> Node 1
+    } else if (lastPosition == 2) {
+      // Entering Node 6 from Node 2
+      if (targetPosition == 0) return 1; // Straight -> Node 0
+      if (targetPosition == 1) return 3; // Right -> Node 1
+      if (targetPosition == 2) return 0; // Back -> Node 2
+    } else if (lastPosition == 0) {
+      // Entering Node 6 from Node 0
+      if (targetPosition == 1) return 2; // Left -> Node 1
+      if (targetPosition == 2) return 3; // Right -> Node 2
+      if (targetPosition == 0) return 0; // Back -> Node 0
+    }
+  }
+  
+  // Handle dynamic mapping for Node 7
+  if (currentNode == 7) {
+    if (lastPosition == 1) {
+      // Entering Node 7 from Node 1
+      if (targetPosition == 5) return 1; // Straight -> Node 5
+      if (targetPosition == 4) return 2; // Left -> Node 4
+      if (targetPosition == 1) return 0; // Back -> Node 1
+      if (targetPosition == 3) {
+        return 3; // right -> Node 3
+      }
+    } else if (lastPosition == 5) {
+      // Entering Node 7 from Node 5
+      if (targetPosition == 4) return 3; // Right -> Node 4
+      if (targetPosition == 1) return 2; // Left -> Node 1
+      if (targetPosition == 5) return 0; // Back -> Node 5
+    } else if (lastPosition == 4) {
+      // Entering Node 7 from Node 4
+      if (targetPosition == 1) return 3; // Right -> Node 1
+      if (targetPosition == 5) return 2; // Left -> Node 5
+      if (targetPosition == 4) return 0; // Back -> Node 4
+    }
+  }
+
+  // Default case for non-junction nodes or when no special handling is needed
+  for (int direction = 0; direction < 3; direction++) {
+    if (adjacencyList[currentNode][direction] == targetPosition) {
+      if (targetPosition == lastPosition) return 0;
+      return forwardDirection ? direction : (direction == 0 ? 1 : (direction == 1 ? 0 : direction));
+    }
+  }
+
+  return -1; // Invalid path
 }
