@@ -1,11 +1,11 @@
 /*************************************************
-* File Name:        [LineFollowingPID]
-* Description:      [Full PID control for line following robot with stopping sensor]
+* File Name:        [pathFollowing.ino]
+* Description:      [Full PID and path following with obstacle sensor]
 * Author:           [Group 14]
-* Created On:       [21/01/2025]
-* Last Modified On: [26/01/2025]
-* Version:          [2.5]
-* Last Changes:     [Added turning time Variable]
+* Created On:       [27/01/2025]
+* Last Modified On: [27/01/2025]
+* Version:          [1.0]
+* Last Changes:     [Added path following]
 *************************************************/
 
 // Motor pins
@@ -20,6 +20,12 @@ int leftSpeed = 0;
 int rightSpeed = 0;
 int baseSpeed = 220; // Base speed for the motors (0–255)
 
+//Node detection settings
+const int forwardDelay = 50;   // Time to move across line slightly
+const int stopDelay = 400;     // Stopping Time at node
+const int rotationTime = 630;   // Time to turn 180 degrees
+const int turningTime = 350;    // Time to make a 90 degree turn 
+
 // IR sensor pins (only outermost sensors are used)
 const int IR_PINS[] = {4, 7, 5, 15}; // 2 sensors on the left, 2 on the right
 const int sensorCount = 4;
@@ -32,9 +38,9 @@ const int blackThreshold = 2700; // Around 2700 for black surface
 const int obstacleThreshold = 1100;  //Obstacle Sensitivity
 
 // PID parameters
-float Kp = 0.5; // Proportional gain (0.35)
-float Ki = 0.0;  // Integral gain (set to 0 initially)
-float Kd = 0.3;  // Derivative gain   (0.2)
+float Kp = 0.62; // Proportional gain (0.35)
+float Ki = 0.00001;  // Integral gain (set to 0.00001 initially)
+float Kd = 0.25;  // Derivative gain   (0.2)
 
 float Pvalue = 0;
 float Ivalue = 0;
@@ -62,13 +68,6 @@ int currentPathIndex = 0;
 
 bool forwardDirection = true;   //Start with forward direction
 int lastPosition = -1;
-
-//Node detection settings
-const int forwardDelay = 200;   // Time to move across line slightly
-const int stopDelay = 400;     // Stopping Time at node
-const int rotationTime = 400;   // Time to turn 180 degrees
-const int turningTime = 400;    // Time to make a 90 degree turn 
-
 
 void setup() {
   // Set motor pins as output
@@ -200,14 +199,25 @@ void driveMotor(int left, int right) {
 }
 
 void left() {
-  driveMotor(baseSpeed, -baseSpeed); // Rotate in place
-  delay(turningTime);                        // Adjust delay for a 180-degree turn
+  driveMotor(baseSpeed, -baseSpeed);    // Rotate in place
+  delay(turningTime);                   // Adjust delay for a 180-degree turn
+  driveMotor(80, 80);
+  delay(forwardDelay);
   return;
 }
 
+void reverse() {
+  driveMotor(baseSpeed, -baseSpeed);
+  delay(rotationTime);
+  driveMotor(80, 80);
+  delay(forwardDelay);
+}
+
 void right() {
-  driveMotor(-baseSpeed, baseSpeed); // Rotate in place
-  delay(turningTime);                        // Adjust delay for a 180-degree turn
+  driveMotor(-baseSpeed, baseSpeed);    // Rotate in place
+  delay(turningTime);                   // Adjust delay for a 180-degree turn
+  driveMotor(80, 80);
+  delay(forwardDelay);
   return;
 
 }
@@ -230,7 +240,7 @@ void obstacleDetection(){
 void choosePath(int direction){
   switch (direction) {
     case 0:                       // reverse
-      left(); left();                         // 180-degree turn
+      reverse();                         // 180-degree turn
       break;
     case 1:                                   // Straight
       driveMotor(baseSpeed, baseSpeed);
@@ -260,7 +270,7 @@ void followPath(){
     if (currentPathIndex >= pathLength - 1) {
       Serial.println("Path complete");
       driveMotor(-220, 220);
-      delay(1000);
+      delay(1300);
       while (true) {
         driveMotor(0, 0);
       }
