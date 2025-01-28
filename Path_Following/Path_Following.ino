@@ -1,11 +1,11 @@
 /*************************************************
-* File Name:        [Path_Following.ino]
-* Description:      [Adding functionality of following designated path]
+* File Name:        [followLine_PID]
+* Description:      [Full PID control for line following robot with stopping sensor]
 * Author:           [Group 14]
-* Created On:       [26/01/2025]
+* Created On:       [21/01/2025]
 * Last Modified On: [26/01/2025]
-* Version:          [0]
-* Last Changes:     []
+* Version:          [2.0]
+* Last Changes:     [Added turning time Variable]
 *************************************************/
 
 // Motor pins
@@ -19,6 +19,7 @@
 const uint8_t IR_Pins[] = {4, 7, 5, 15}; // 2 sensors on the left, 2 on the right
 const uint8_t sensorCount = 4;
 const int sensorWeights[] = {-2000, -1000, 1000, 2000};
+int sensorValues[sensorCount];      //Senor readings
 
 //Line detection Sensitivity
 const int whiteThreshold = 270; // Around 200 for white line
@@ -37,9 +38,31 @@ int rightSpeed = 0;
 int baseSpeed = 220; // Base speed for the motors (0–255)
 
 //Node detection settings
-const int forwardDelay = 200;
-const int stopDelay = 1000;
-const int rotationTime = 600;
+const int forwardDelay = 200;   // Time to move across line slightly
+const int stopDelay = 1000;     // Stopping Time at node
+const int rotationTime = 600;   // Time to turn 180 degrees
+const int turningTime = 300;    // Time to make a 90 degree turn 
+
+// Adjacency Matrix: -1 means no path
+const int nodeCount = 8; // Number of nodes
+const int adjacencyList[nodeCount][3] = {
+  { 4, 6, -1 },     // Node 0: {Back=-4, Straight=6, Left=NONE}
+  { 6, 7, -1 },     // Node 1: {Back=6, Straight=7, Left=NONE}
+  { 6, 3, -1 },     // Node 2: {Back=6, Straight=3, Left=NONE}
+  { 2, 7, -1 },     // Node 3: {Back=2, Straight=7, Left=NONE}
+  { 7, 0, -1 },     // Node 4: {Back=7, Straight=0, Left=NONE}
+  { -1, -1, -1 },   // Node 5: {Back=NONE, Straight=NONE, Left=NONE}
+  { 0, 2, 1 },      // Node 6: {Back=0, Straight=2, Left=1}
+  { 3, 4, 1 }       // Node 7: {Back=3, Straight=4, Left=1}
+};
+
+// Path Following vairables
+const int path[] = {0, 6, 2, 3};
+const int pathLength = sizeof(path) / sizeof(path[0]);
+int currentPosition = path[0];
+int currentPathIndex = 0;
+
+bool forwardDirection = true;   //Start with forward direction
 
 void setup() {
   // Pin Initialisation
@@ -57,31 +80,12 @@ void setup() {
 }
 
 void loop() {
-
+  readLineSensors();
+  followPath();
+  followLine();
 }
 
-void line_following() {
-  // Read and debug sensor values
-  int sensorValues[sensorCount];
-  for (uint8_t i = 0; i < sensorCount; i++) {
-    sensorValues[i] = analogRead(IR_Pins[i]);
-    Serial.print("Sensor ");
-    Serial.print(i);
-    Serial.print(": ");
-    Serial.println(sensorValues[i]);
-  }
-
-  // Check for node detection
-  if (detectNode(sensorValues)) {
-    driveMotor(0, 0);           //Stop on the line
-    delay(100);                   
-    driveMotor(80, 80);
-    delay(forwardDelay);          // Move slightly forward to cross the line
-    driveMotor(0, 0);
-    delay(stopDelay);                  //wait before continuing
-    return;
-  }
-
+void followLine() {
   // Calculate the position of the line
   int position = 0;
   int total = 0;
@@ -129,7 +133,7 @@ void line_following() {
 }
 
 // Detect node (3 or more sensors detecting white)
-bool detectNode(int sensorValues[]) {
+bool detectNode() {
   int whiteCount = 0;
   for (int i = 0; i < sensorCount && whiteCount < 3; i++) {
     if (sensorValues[i] < whiteThreshold) {
@@ -193,4 +197,76 @@ void obstacleDetection(){
   }
 }
 
-void 
+// Read current Sensor values
+void readLineSensors() {
+  for (int i = 0; i < sensorCount; i++) {
+    sensorValues[i] = analogRead(IR_Pins[i]); 
+    //debug
+    //Serial.print("Sensor ");
+    //Serial.print(i);
+    //Serial.print(": ");
+    //Serial.println(sensorValues[i]);
+  }
+}
+
+//Move mobot based on direction
+void choosePath(int direction){
+  switch (direction) {
+    case 0:                       // reverse
+      left(); left();                         // 180-degree turn
+      forwardDirection = !forwardDirection;   //Switch direction
+      break;
+    case 1:                                   // Straight
+      driveMotor(baseSpeed, baseSpeed);
+      delay(500);                             // Adjust the delay based on distance
+      break;
+    case 2:                                   // Left
+      left();
+      break;
+    case 3:
+      right();
+      break;
+    default:
+      Serial.println("Error: Direction Invalid");
+      driveMotor(0, 0);
+      break;
+  }
+}
+
+void followPath(){
+  if (detectNode()){
+    driveMotor(0, 0);           //Stop on the line
+    delay(stopDelay);
+
+    //Check if mobot is at the end of path
+    if (currentPathIndex >= pathLength - 1) {
+      Serial.println("Path complete");
+      while (true) {
+        driveMotor(0, 0);
+      }
+    }
+
+    // Get next position and direction
+    int nextPosition = path[currentPathIndex + 1];
+    int direction = getNextDirection(currentPosition, nextPosition);
+
+    // Check if Direction is valid
+    if (direction != -1) {
+      choosePath(direction);
+      currentPosition = nextPosition;
+      currentPathIndex++;
+    } else {
+      Serial.println("Error: No valid path found");
+    }
+  }
+}
+
+// Function to get the next direction (Reverse=0, Forward=1, Left=2)
+int getNextDirection(int currentNode, int targetPosition) {
+  for (int direction = 0; direction < 3; direction++) {
+    if (adjacencyList[currentNode][direction] == targetPosition) {
+      return direction; // Return the direction index
+    }
+  }
+  return -1; // Invalid path
+}
