@@ -15,6 +15,11 @@
 #define motor2Phase 36  // Right motor phase
 #define stopSensor 1
 
+// Motor Speeds
+int leftSpeed = 0;
+int rightSpeed = 0;
+int baseSpeed = 170; // Base speed for the motors (0–255)
+
 // IR sensor pins (only outermost sensors are used)
 const int IR_PINS[] = {4, 7, 5, 15}; // 2 sensors on the left, 2 on the right
 const int sensorCount = 4;
@@ -29,7 +34,7 @@ const int obstacleThreshold = 1100;  //Obstacle Sensitivity
 // PID parameters
 float Kp = 0.35; // Proportional gain
 float Ki = 0.0;  // Integral gain (set to 0 initially)
-float Kd = 0.2;  // Derivative gain
+float Kd = 0.3;  // Derivative gain
 
 float Pvalue = 0;
 float Ivalue = 0;
@@ -50,24 +55,18 @@ const int adjacencyList[nodeCount][3] = {
 };
 
 // Path Following vairables
-const int path[] = {0, 6, 2, 3};
+const int path[] = {0, 4, 1, 6, 2};
 const int pathLength = sizeof(path) / sizeof(path[0]);
 int currentPosition = path[0];
 int currentPathIndex = 0;
 
 bool forwardDirection = true;   //Start with forward direction
 
-
-// Motor Speeds
-int leftSpeed = 0;
-int rightSpeed = 0;
-int baseSpeed = 220; // Base speed for the motors (0–255)
-
 //Node detection settings
 const int forwardDelay = 200;   // Time to move across line slightly
-const int stopDelay = 1000;     // Stopping Time at node
-const int rotationTime = 600;   // Time to turn 180 degrees
-const int turningTime = 300;    // Time to make a 90 degree turn 
+const int stopDelay = 500;     // Stopping Time at node
+const int rotationTime = 500;   // Time to turn 180 degrees
+const int turningTime = 500;    // Time to make a 90 degree turn 
 
 
 void setup() {
@@ -89,22 +88,23 @@ void setup() {
 
 void loop() {
 
-  obstacleDetection();
+  followPath();
+  //obstacleDetection();
   // Perform line following
   followLine();
 }
 
+// PID Line following Function
 void followLine() {
   // Read and debug sensor values
   readLineSensors();
   // Check for node detection 
   if (detectNode()) {
     driveMotor(0, 0); // Stop the robot
-    delay(100);        // Wait for 0.1 seconds
     driveMotor(80, 80); // Drive forward at low speed
     delay(200);          // Move slightly forward to cross the line
     driveMotor(0, 0);   // Stop again
-    delay(1000);         // Wait for 1 second before resuming
+    delay(stopDelay);         // Wait for 1 second before resuming
     return;              // Skip the rest of the loop iteration
   }
 
@@ -171,6 +171,7 @@ bool detectNode() {
   return (whiteCount >= 3); // Node detected if 3 or more sensors see white
 }
 
+// Read IR sensor values and update array
 void readLineSensors(){
   // Read and debug sensor values
   for (int i = 0; i < sensorCount; i++) {
@@ -198,19 +199,14 @@ void driveMotor(int left, int right) {
 }
 
 void left() {
-  driveMotor(-baseSpeed, baseSpeed); // Rotate in place
-  delay(300);                        // Adjust delay for a 180-degree turn
-  driveMotor(0, 0);                  // Stop after turning
-  delay(100);                         // Short pause before resuming
+  driveMotor(baseSpeed, -baseSpeed); // Rotate in place
+  delay(turningTime);                        // Adjust delay for a 180-degree turn
   return;
-
 }
 
 void right() {
-  driveMotor(baseSpeed, -baseSpeed); // Rotate in place
-  delay(300);                        // Adjust delay for a 180-degree turn
-  driveMotor(0, 0);                  // Stop after turning
-  delay(100);                         // Short pause before resuming
+  driveMotor(-baseSpeed, baseSpeed); // Rotate in place
+  delay(turningTime);                        // Adjust delay for a 180-degree turn
   return;
 
 }
@@ -287,5 +283,7 @@ void followPath(){
     } else {
       Serial.println("Error: No valid path found");
     }
+  } else {
+    return;
   }
 }
