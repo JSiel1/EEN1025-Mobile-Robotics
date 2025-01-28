@@ -51,11 +51,11 @@ const int adjacencyList[nodeCount][3] = {
   { 7, 0, -1 },     // Node 4: {Back=7, Straight=0, Left=NONE}
   { -1, -1, -1 },   // Node 5: {Back=NONE, Straight=NONE, Left=NONE}
   { 0, 2, 1 },      // Node 6: {Back=0, Straight=2, Left=1}
-  { 3, 4, 1 }       // Node 7: {Back=3, Straight=4, Left=1}
+  { 1, 5, 4 }       // Node 7: {Back=3, Straight=4, Left=1}
 };
 
 // Path Following vairables
-const int path[] = {0, 4, 1, 6, 2};
+const int path[] = {0, 6, 1, 6, 1};
 const int pathLength = sizeof(path) / sizeof(path[0]);
 int currentPosition = path[0];
 int currentPathIndex = 0;
@@ -64,9 +64,9 @@ bool forwardDirection = true;   //Start with forward direction
 
 //Node detection settings
 const int forwardDelay = 200;   // Time to move across line slightly
-const int stopDelay = 500;     // Stopping Time at node
-const int rotationTime = 500;   // Time to turn 180 degrees
-const int turningTime = 500;    // Time to make a 90 degree turn 
+const int stopDelay = 400;     // Stopping Time at node
+const int rotationTime = 400;   // Time to turn 180 degrees
+const int turningTime = 400;    // Time to make a 90 degree turn 
 
 
 void setup() {
