@@ -3,9 +3,6 @@
 
 #define BUFSIZE 512
 
-String inputString = ""; // Variable to store input string
-int receivedValue = 0;
-
 // Wi-Fi credentials
 const char *ssid = "iot";                // Replace with your Wi-Fi SSID
 const char *password = "manganese30sulphating"; // Replace with your Wi-Fi password
@@ -17,9 +14,9 @@ const char *teamID = "rhtr2655";      // Replace with your team's ID
 
 //Cloud Server Variables
 bool isRunning = false;
-int startingPosition = 2;  // Initial position of the robot
-int currentPosition = 0;   // Track the robot's current position
-String nextDestination = ""; // Store the next destination
+int startingPosition = 0;  // Initial position of the robot
+int currentPosition = startingPosition;   // Track the robot's current position
+int nextPosition = 0;
 
 // Wifi class
 WiFiClient client;
@@ -31,39 +28,18 @@ void setup() {
   // Connect to Wi-Fi
   connectToWiFi();
 
-  // Notify the server of the starting position
-  sendPosition(startingPosition);
-
-  // Get next Position from server
-  //nextDestination = receiveNextPosition();
-  //if (nextDestination != "-1") {
-  //  Serial.print("Next Destination: ");
-  //  Serial.println(nextDestination);
-  //  isRunning = true; // Start the line-following process
-  //} else {
-  //  Serial.println("Failed to get the next destination.");
-  //}
+  // Notify the server of the starting position and get next position
+  nextPosition = sendPosition(startingPosition);
+  if (nextDestination != "-1") {
+    Serial.print("Next Position: ");
+    Serial.println(nextPosition);
+    isRunning = true; // Start the line-following process
+  } else {
+    Serial.println("Failed to get the next Position.");
+  }
 }
 
 void loop() {
-  if (Serial.available() > 0) {  // Check if data is available to read
-        char receivedChar = Serial.read();
-        if (receivedChar == '\n') { // Check for end of input
-            if (inputString == "send") {
-                sendPosition(receivedValue);
-                Serial.println("Position sent.");
-                Serial.println(receiveNextPosition());
-            } else {
-                receivedValue = inputString.toInt();  // Convert input to integer
-                Serial.print("Updated value: ");
-                Serial.println(receivedValue);  // Print the updated value
-            }
-            inputString = ""; // Reset input string
-        } else {
-            inputString += receivedChar; // Append character to input string
-      }
-  }
-
 
 }
 
@@ -82,34 +58,57 @@ void connectToWiFi() {
 }
 
 // Function to send current position 
-void sendPosition(int position) {
-  if (client.connect(serverIP, serverPort)) {
-    String postBody = "position=" + String(position);
-
-    // Construct HTTP POST request
-    client.println("POST /api/arrived/" + String(teamID) + " HTTP/1.1");
-    //client.println("Host: " + String(server));
-    client.println("Content-Type: application/x-www-form-urlencoded");
-    client.print("Content-Length: ");
-    client.println(postBody.length());
-    client.println(); // Blank line to indicate end of headers
-    client.println(postBody); // POST body
-
-    // Wait for a response
-    while (client.connected() || client.available()) {
-      if (client.available()) {
-        String response = client.readString();
-        Serial.println("Server response:");
-        Serial.println(response);
-        break;
-      }
-    }
-
-    client.stop();
-  } else {
+int sendPosition(int position) {
+  if (!client.connect(serverIP, serverPort)) {
     Serial.println("Connection to server failed!");
-    client.stop();
+    return -1; // Indicate failure
   }
+
+  String postBody = "position=" + String(position);
+
+  // Send HTTP POST request
+  client.println("POST /api/arrived/" + String(teamID) + " HTTP/1.1");
+  client.println("Content-Type: application/x-www-form-urlencoded");
+  client.print("Content-Length: ");
+  client.println(postBody.length());
+  client.println(); // End headers
+  client.println(postBody); // Send body
+
+  // Read response
+  String response = "";
+  while (client.connected() || client.available()) {
+    if (client.available()) {
+      response = client.readString();
+      break;
+    }
+  }
+
+  client.stop(); // Close connection
+
+  // Debug print the full response
+  Serial.println("Full Server Response:");
+  Serial.println(response);
+
+  // Extract the HTTP status code
+  int statusCode = getStatusCode(response);
+  if (statusCode != 200) {
+      Serial.println("Error: Failed to retrieve next position. HTTP Status: " + String(statusCode));
+      return -1;
+  }
+
+  // Extract the response body (which is the next position)
+  String body = getResponseBody(response);
+  body.trim(); // Remove any extra whitespace
+
+  Serial.print("Next Position: ");
+  Serial.println(body);
+
+  if (body.equals("Finished")) {
+     Serial.println("Final destination reached.");
+      return -1;
+  }
+
+  return body.toInt(); // Convert to integer and return
 }
 
 // Function to read the HTTP response
@@ -135,34 +134,4 @@ String getResponseBody(String& response) {
   return body;
 }
 
-// Function to receive the next position
-int receiveNextPosition() {
-    // Send a GET request to retrieve the next position
-    //client.println("GET /api/next/" + String(teamID) + " HTTP/1.1");
-    //client.println("Connection: close");
-    //client.println();
-
-    // Read and process the response
-    String response = readResponse();
-    int statusCode = getStatusCode(response);
-    
-    client.stop();
-
-    if (statusCode == 200) {
-      String body = getResponseBody(response);
-      if (!body.equals("Finished")) {
-        return body.toInt();
-      } else {
-        Serial.println("Final destination reached.");
-        return -1; // Indicate final destination
-      }
-    } else {
-      Serial.println("Failed to retrieve next position. HTTP Status: " + String(statusCode));
-      return -1; // Indicate error
-    }
-  } else {
-    Serial.println("Connection to server failed!");
-    return -1; // Indicate connection failure
-  }
-}
 
