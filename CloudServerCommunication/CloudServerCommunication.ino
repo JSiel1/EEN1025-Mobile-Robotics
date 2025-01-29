@@ -30,6 +30,8 @@ void setup() {
 
   // Notify the server of the starting position and get next position
   nextPosition = sendPosition(startingPosition);
+  
+  // Check if next position valid and start mobot
   if (nextDestination != "-1") {
     Serial.print("Next Position: ");
     Serial.println(nextPosition);
@@ -40,7 +42,9 @@ void setup() {
 }
 
 void loop() {
+  if (isRunning) {
 
+  }
 }
 
 void connectToWiFi() {
