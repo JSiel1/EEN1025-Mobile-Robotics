@@ -3,7 +3,7 @@
 * Description:      [Full PID, path following and cloud communication with obstacle sensor]
 * Author:           [Group 14]
 * Created On:       [29/01/2025]
-* Last Modified On: [29/01/2025]
+* Last Modified On: [30/01/2025]
 * Version:          [1.0]
 * Last Changes:     []
 *************************************************/
@@ -19,7 +19,7 @@
 #define motor1Phase 38  // Left motor phase
 #define motor2PWM 35  // Right motor enable (PWM)
 #define motor2Phase 36  // Right motor phase
-#define stopSensor 1
+#define stopSensor 1    //obbstacle detection sensor
 
 // Motor Speeds
 int leftSpeed = 0;
@@ -411,9 +411,29 @@ void followPath(){
 
   driveMotor(0, 0);           //Stop on the line
 
-  // Send current position and get next position and direction
-  if (currentPosition != 0) {
+  // Send current position and get next position
+  if (currentPosition != 0 && currentPosition != 6 && currentPosition != 7) {
     nextPosition = sendPosition(currentPosition);
+  }
+
+  // Handle virtual node at junctions
+  if (requiresVirtualNode(currentPosition, nextPosition)) {
+    int originalDestination = nextPosition;
+    nextPosition = getVirtualNode(currentPosition, nextPosition);
+  }
+
+  // Handle logic at position 6 or 7
+  if (nextPosition == 6 || nextPosition == 7) {
+    int direction = getDynamicDirection(currentPosition, nextPosition, lastPosition);
+    if (direction != -1) {
+      lastPosition = currentPosition;
+      nextPosition = originalDestionation;
+      choosePath(direction);
+      return;
+    } else {
+      Serial.println("Error: Position 6/7, invalid Path");
+      return;
+    }
   }
 
   int direction = getDynamicDirection(currentPosition, nextPosition, lastPosition);
@@ -485,4 +505,32 @@ int getDynamicDirection(int currentNode, int targetPosition, int lastPosition) {
   }
 
   return -1; // Invalid path
+}
+
+bool requiresVirtualNode(int current, int next) {
+  // Check if the next node is not directly connected to the current node
+  for (int i = 0; i < 3; i++) {
+    if (adjacencyList[current][i] == next) {
+      return false;  // Direct connection exists, no virtual node needed
+    }
+  }
+  return true;  // No direct path, so a virtual node is needed
+}
+
+int getVirtualNode(int current, int next) {
+  // Check for a virtual node that connects both current and next position
+  for (int i = 7; i <= 8; i++) {  // Virtual nodes are 6 and 7
+    bool connectsCurrent = false;
+    bool connectsNext = false;
+
+    for (int j = 0; j < 3; j++) {
+      if (adjacencyList[i][j] == current) connectsCurrent = true;
+      if (adjacencyList[i][j] == next) connectsNext = true;
+    }
+
+    if (connectsCurrent && connectsNext) {
+      return i;  // Found a valid virtual node transition
+    }
+  }
+  return next;  // No virtual node needed, return the original next position
 }
