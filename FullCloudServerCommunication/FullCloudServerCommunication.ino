@@ -120,7 +120,8 @@ void setup() {
 
 void loop() {
   if (isRunning) {
-
+    followPath();
+    followLine();
   }
 }
 
@@ -420,7 +421,22 @@ void followPath(){
 
   // Handle virtual node at junctions
   if (requiresVirtualNode(currentPosition, nextPosition)) {
-    nextPosition = getVirtualNode(currentPosition, nextPosition);
+    if ()
+    int virtualNode = getVirtualNode(currentPosition, nextPosition);
+
+    // Prevent infinite loop
+    if (currentPosition != virtualNode && virtualNode != originalDestination && currentPosition != 7) {
+      nextPosition = virtualNode;
+      Serial.println("Virtual Node inserted");
+      Serial.println(nextPosition);
+    } else {
+      nextPosition = originalDestination;
+    }
+  }
+
+  if (currentPosition == 6 || currentPosition == 7) {
+    Serial.println("At virtual node, moving to real destination...");
+    nextPosition = originalDestination;
   }
 
   // Handle logic at position 6 or 7
@@ -509,6 +525,9 @@ int getDynamicDirection(int currentNode, int targetPosition, int lastPosition) {
 }
 
 bool requiresVirtualNode(int current, int next) {
+  if (current == 6 || current == 7) {
+    return false;
+  }
   // Check if the next node is not directly connected to the current node
   for (int i = 0; i < 3; i++) {
     if (adjacencyList[current][i] == next) {
@@ -519,8 +538,13 @@ bool requiresVirtualNode(int current, int next) {
 }
 
 int getVirtualNode(int current, int next) {
+  // Prevent reassignment if already in a virtual node
+  if (current == 6 || current == 7) {
+    return next;
+  }
+
   // Check for a virtual node that connects both current and next position
-  for (int i = 7; i <= 8; i++) {  // Virtual nodes are 6 and 7
+  for (int i = 6; i <= 7; i++) {  // Virtual nodes are 6 and 7
     bool connectsCurrent = false;
     bool connectsNext = false;
 
