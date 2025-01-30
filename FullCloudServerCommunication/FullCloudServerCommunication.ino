@@ -109,7 +109,7 @@ void setup() {
   nextPosition = sendPosition(startingPosition);
   
   // Check if next position valid and start mobot
-  if (nextDestination != "-1") {
+  if (nextPosition != -1) {
     Serial.print("Next Position: ");
     Serial.println(nextPosition);
     isRunning = true; // Start the line-following process
@@ -416,9 +416,10 @@ void followPath(){
     nextPosition = sendPosition(currentPosition);
   }
 
+  int originalDestination = nextPosition;
+
   // Handle virtual node at junctions
   if (requiresVirtualNode(currentPosition, nextPosition)) {
-    int originalDestination = nextPosition;
     nextPosition = getVirtualNode(currentPosition, nextPosition);
   }
 
@@ -427,7 +428,7 @@ void followPath(){
     int direction = getDynamicDirection(currentPosition, nextPosition, lastPosition);
     if (direction != -1) {
       lastPosition = currentPosition;
-      nextPosition = originalDestionation;
+      nextPosition = originalDestination;
       choosePath(direction);
       return;
     } else {
