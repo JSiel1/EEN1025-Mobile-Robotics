@@ -417,24 +417,25 @@ void followPath(){
     nextPosition = sendPosition(currentPosition);
   }
 
-  int originalDestination = nextPosition;
+  static int originalDestination = -1;
+
+  if (nextPosition == 6 || nextPosition == 7) {
+    originalDestination = nextPosition;  // Store the real target
+  }
 
   // Handle virtual node at junctions
   if (requiresVirtualNode(currentPosition, nextPosition)) {
-    if ()
     int virtualNode = getVirtualNode(currentPosition, nextPosition);
 
     // Prevent infinite loop
-    if (currentPosition != virtualNode && virtualNode != originalDestination && currentPosition != 7) {
+    if (virtualNode != currentPosition) {
       nextPosition = virtualNode;
       Serial.println("Virtual Node inserted");
       Serial.println(nextPosition);
-    } else {
-      nextPosition = originalDestination;
     }
   }
 
-  if (currentPosition == 6 || currentPosition == 7) {
+  if ((currentPosition == 6 || currentPosition == 7) && originalDestination != -1) {
     Serial.println("At virtual node, moving to real destination...");
     nextPosition = originalDestination;
   }
@@ -444,7 +445,6 @@ void followPath(){
     int direction = getDynamicDirection(currentPosition, nextPosition, lastPosition);
     if (direction != -1) {
       lastPosition = currentPosition;
-      nextPosition = originalDestination;
       choosePath(direction);
       return;
     } else {
