@@ -4,8 +4,8 @@
 * Author:           [Group 14]
 * Created On:       [29/01/2025]
 * Last Modified On: [30/01/2025]
-* Version:          [1.0]
-* Last Changes:     []
+* Version:          [1.1]
+* Last Changes:     [Fixed Issues with Virtual node looping]
 *************************************************/
 
 #include <WiFi.h>
