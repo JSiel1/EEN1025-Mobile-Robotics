@@ -81,6 +81,7 @@ bool isRunning = false;
 int startingPosition = 0;  // Initial position of the robot
 int currentPosition = startingPosition;   // Track the robot's current position
 int nextPosition = 0;
+int originalDestination = -1;
 int lastPosition = -1;
 bool forwardDirection = true;   //Start with forward direction
 
@@ -105,24 +106,14 @@ void setup() {
   // Connect to Wi-Fi
   connectToWiFi();
 
-  // Notify the server of the starting position and get next position
-  nextPosition = sendPosition(startingPosition);
-  
-  // Check if next position valid and start mobot
-  if (nextPosition != -1) {
-    Serial.print("Next Position: ");
-    Serial.println(nextPosition);
-    isRunning = true; // Start the line-following process
-  } else {
-    Serial.println("Failed to get the next Position.");
-  }
+  //delay before starting 
+  delay(1000);
 }
 
 void loop() {
-  if (isRunning) {
-    followPath();
-    followLine();
-  }
+  readLineSensors();
+  followPath();
+  followLine();
 }
 
 //-------------------------------------------------------------
@@ -192,7 +183,7 @@ int sendPosition(int position) {
 
   if (body.equals("Finished")) {
      Serial.println("Final destination reached.");
-      return -1;
+      return -2;
   }
 
   return body.toInt(); // Convert to integer and return
@@ -227,18 +218,6 @@ String getResponseBody(String& response) {
 
 // Function for line following with PID
 void followLine() {
-  // Read and debug sensor values
-  readLineSensors();
-  // Check for node detection 
-  if (detectNode()) {
-    driveMotor(0, 0); // Stop the robot
-    driveMotor(80, 80); // Drive forward at low speed
-    delay(200);          // Move slightly forward to cross the line
-    driveMotor(0, 0);   // Stop again
-    delay(stopDelay);         // Wait for 1 second before resuming
-    return;              // Skip the rest of the loop iteration
-  }
-
   // Calculate the position of the line (weighted average method using outer sensors)
   int position = 0;
   int total = 0;
@@ -333,6 +312,7 @@ void driveMotor(int left, int right) {
   }
 }
 
+// function to turn left
 void left() {
   driveMotor(baseSpeed, -baseSpeed);    // Rotate in place
   delay(turningTime);                   // Adjust delay for a 180-degree turn
@@ -341,6 +321,7 @@ void left() {
   return;
 }
 
+// function to do a 180 degree turn
 void reverse() {
   driveMotor(baseSpeed, -baseSpeed);
   delay(rotationTime);
@@ -348,6 +329,7 @@ void reverse() {
   delay(forwardDelay);
 }
 
+// function to turn right
 void right() {
   driveMotor(-baseSpeed, baseSpeed);    // Rotate in place
   delay(turningTime);                   // Adjust delay for a 180-degree turn
@@ -361,6 +343,7 @@ void right() {
 //---------------Obstacle Detection Logic----------------------
 //-------------------------------------------------------------
 
+// Detect an obstacle in front of the sensor
 void obstacleDetection(){
   // Debugging: Check stop sensor value
   int stopSensorValue = analogRead(stopSensor);
@@ -380,90 +363,59 @@ void obstacleDetection(){
 //-----------------Path Following Logic------------------------
 //-------------------------------------------------------------
 
-void choosePath(int direction){
-  switch (direction) {
-    case 0:                       // reverse
-      reverse();                         // 180-degree turn
-      break;
-    case 1:                                   // Straight
-      driveMotor(baseSpeed, baseSpeed);
-      delay(500);                             // Adjust the delay based on distance
-      break;
-    case 2:                                   // Left
-      left();
-      break;
-    case 3:
-      right();
-      if (forwardDirection) {
-        forwardDirection = false;
-      }
-      break;
-    default:
-      Serial.println("Error: Direction Invalid");
-      driveMotor(0, 0);
-      break;
-  }
-}
-
 void followPath(){
   if (!detectNode()){
     return;
   }
 
-  driveMotor(0, 0);           //Stop on the line
+  // Stop robot at line and move slightly over
+  driveMotor(0, 0); // Stop the robot
+  driveMotor(80, 80); // Drive forward at low speed
+  delay(forwardDelay);          // Move slightly forward to cross the line
+  driveMotor(0, 0);   // Stop again
+  delay(stopDelay);         // Wait for 1 second before resuming
 
-  // Send current position and get next position
-  if (currentPosition != 0 && currentPosition != 6 && currentPosition != 7) {
+  //Dont update position if node is 0 and 6 and 7
+  if (currentPosition != 6 && currentPosition != 7) {
     nextPosition = sendPosition(currentPosition);
-  }
 
-  static int originalDestination = -1;
-
-  if (nextPosition == 6 || nextPosition == 7) {
-    originalDestination = nextPosition;  // Store the real target
-  }
-
-  // Handle virtual node at junctions
-  if (requiresVirtualNode(currentPosition, nextPosition)) {
-    int virtualNode = getVirtualNode(currentPosition, nextPosition);
-
-    // Prevent infinite loop
-    if (virtualNode != currentPosition) {
-      nextPosition = virtualNode;
-      Serial.println("Virtual Node inserted");
-      Serial.println(nextPosition);
+    // Handle finished logic
+    if (nextPosition == -2) {
+      Serial.println("Destination Reached");
+      driveMotor(0, 0);       //stop mobot
+      // Keep mobot stopped
+      while (true) {
+        delay(1000);
+      }
     }
-  }
-
-  if ((currentPosition == 6 || currentPosition == 7) && originalDestination != -1) {
-    Serial.println("At virtual node, moving to real destination...");
+  } else if (currentPosition == 6 || currentPosition == 7) {
     nextPosition = originalDestination;
   }
 
-  // Handle logic at position 6 or 7
-  if (nextPosition == 6 || nextPosition == 7) {
-    int direction = getDynamicDirection(currentPosition, nextPosition, lastPosition);
-    if (direction != -1) {
-      lastPosition = currentPosition;
-      choosePath(direction);
-      return;
-    } else {
-      Serial.println("Error: Position 6/7, invalid Path");
-      return;
-    }
+  bool virtualNode = requiresVirtualNode(currentPosition, nextPosition);
+
+  if (virtualNode) {
+    originalDestination = nextPosition;
+    nextPosition = getVirtualNode(currentPosition, nextPosition);
+    Serial.println("Original Destination saved and Virtual Node inserted");
+  } else {
+    // Debug Remove After
+    Serial.println("Direct Path found, No virtual node needed");          ///////REMOVE AFER
   }
 
   int direction = getDynamicDirection(currentPosition, nextPosition, lastPosition);
-   
-  // Check if Direction is valid
+
+  // Check if finished
+
   if (direction != -1) {
     choosePath(direction);
     lastPosition = currentPosition;
     currentPosition = nextPosition;
   } else {
-    Serial.println("Error: No valid path found");
-    return;
+    // Debug
+    Serial.println("Error: No Valid Path found between " + String(currentPosition) + " -> " + String(nextPosition));
   }
+
 }
 
 int getDynamicDirection(int currentNode, int targetPosition, int lastPosition) {
@@ -525,9 +477,6 @@ int getDynamicDirection(int currentNode, int targetPosition, int lastPosition) {
 }
 
 bool requiresVirtualNode(int current, int next) {
-  if (current == 6 || current == 7) {
-    return false;
-  }
   // Check if the next node is not directly connected to the current node
   for (int i = 0; i < 3; i++) {
     if (adjacencyList[current][i] == next) {
@@ -538,11 +487,6 @@ bool requiresVirtualNode(int current, int next) {
 }
 
 int getVirtualNode(int current, int next) {
-  // Prevent reassignment if already in a virtual node
-  if (current == 6 || current == 7) {
-    return next;
-  }
-
   // Check for a virtual node that connects both current and next position
   for (int i = 6; i <= 7; i++) {  // Virtual nodes are 6 and 7
     bool connectsCurrent = false;
@@ -558,4 +502,29 @@ int getVirtualNode(int current, int next) {
     }
   }
   return next;  // No virtual node needed, return the original next position
+}
+
+void choosePath(int direction){
+  switch (direction) {
+    case 0:                       // reverse
+      reverse();                         // 180-degree turn
+      break;
+    case 1:                                   // Straight
+      driveMotor(baseSpeed, baseSpeed);
+      delay(500);                             // Adjust the delay based on distance
+      break;
+    case 2:                                   // Left
+      left();
+      break;
+    case 3:
+      right();
+      if (forwardDirection) {
+        forwardDirection = false;
+      }
+      break;
+    default:
+      Serial.println("Error: Direction Invalid");
+      driveMotor(0, 0);
+      break;
+  }
 }
