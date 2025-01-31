@@ -24,13 +24,13 @@
 // Motor Speeds
 int leftSpeed = 0;
 int rightSpeed = 0;
-int baseSpeed = 220; // Base speed for the motors (0–255)
+int baseSpeed = 180; // Base speed for the motors (0–255)
 
 //Node detection settings
-const int forwardDelay = 50;   // Time to move across line slightly
-const int stopDelay = 400;     // Stopping Time at node
-const int rotationTime = 630;   // Time to turn 180 degrees
-const int turningTime = 350;    // Time to make a 90 degree turn 
+const int forwardDelay = 75;   // Time to move across line slightly
+const int stopDelay = 0;     // Stopping Time at node
+const int rotationTime = 850;   // Time to turn 180 degrees
+const int turningTime = 375;    // Time to make a 90 degree turn 
 
 // Wi-Fi credentials
 const char *ssid = "iot";                // Replace with your Wi-Fi SSID
@@ -48,9 +48,9 @@ const int blackThreshold = 2700; // Around 2700 for black surface
 const int obstacleThreshold = 1100;  //Obstacle Sensitivity
 
 // PID parameters
-float Kp = 0.62; // Proportional gain (0.35)
-float Ki = 0.00001;  // Integral gain (set to 0.00001 initially)
-float Kd = 0.25;  // Derivative gain   (0.2)
+float Kp = 0.35; // Proportional gain (0.35)
+float Ki = 0.0;  // Integral gain (set to 0.00001 initially)
+float Kd = 0.20;  // Derivative gain   (0.2)
 
 float Pvalue = 0;
 float Ivalue = 0;
@@ -404,7 +404,7 @@ void followPath(){
   }
 
   int direction = getDynamicDirection(currentPosition, nextPosition, lastPosition);
-
+  Serial.println(direction);
   // Check if finished
 
   if (direction != -1) {
@@ -425,19 +425,21 @@ int getDynamicDirection(int currentNode, int targetPosition, int lastPosition) {
       // Entering Node 6 from Node 1
       if (targetPosition == 2) return 2; // Left -> Node 2
       if (targetPosition == 0) {
-        forwardDirection == !forwardDirection;
         return 3; // Right -> Node 0
       }
       if (targetPosition == 1) return 0; // Back -> Node 1
     } else if (lastPosition == 2) {
       // Entering Node 6 from Node 2
       if (targetPosition == 0) return 1; // Straight -> Node 0
-      if (targetPosition == 1) return 3; // Right -> Node 1
+      if (targetPosition == 1) {
+        forwardDirection = !forwardDirection;
+        return 3; // Right -> Node 1
+      }
       if (targetPosition == 2) return 0; // Back -> Node 2
     } else if (lastPosition == 0) {
       // Entering Node 6 from Node 0
       if (targetPosition == 1) return 2; // Left -> Node 1
-      if (targetPosition == 2) return 3; // Right -> Node 2
+      if (targetPosition == 2) return 1; // straight -> Node 2
       if (targetPosition == 0) return 0; // Back -> Node 0
     }
   }
@@ -449,9 +451,7 @@ int getDynamicDirection(int currentNode, int targetPosition, int lastPosition) {
       if (targetPosition == 5) return 1; // Straight -> Node 5
       if (targetPosition == 4) return 2; // Left -> Node 4
       if (targetPosition == 1) return 0; // Back -> Node 1
-      if (targetPosition == 3) {
-        return 3; // right -> Node 3
-      }
+      if (targetPosition == 3) return 3; // right -> Node 3
     } else if (lastPosition == 5) {
       // Entering Node 7 from Node 5
       if (targetPosition == 4) return 3; // Right -> Node 4
@@ -462,6 +462,9 @@ int getDynamicDirection(int currentNode, int targetPosition, int lastPosition) {
       if (targetPosition == 1) return 3; // Right -> Node 1
       if (targetPosition == 5) return 2; // Left -> Node 5
       if (targetPosition == 4) return 0; // Back -> Node 4
+    } else if (lastPosition == 3 && targetPosition == 1) {
+      forwardDirection = !forwardDirection; // Flip direction
+      return 2;
     }
   }
 
@@ -473,6 +476,7 @@ int getDynamicDirection(int currentNode, int targetPosition, int lastPosition) {
     }
   }
 
+  Serial.println("Error: Direction Fetch error");
   return -1; // Invalid path
 }
 
