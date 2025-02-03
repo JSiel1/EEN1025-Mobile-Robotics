@@ -1,7 +1,7 @@
 # Mobile Robotics - Group 14  
 ---
 ## Features:
-Full PID Line Following with Server Communication.
+Full PID Line Following with Path Planning and Server Communication.
 
 
 ## Instructions:
