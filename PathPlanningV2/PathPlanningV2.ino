@@ -23,20 +23,20 @@
 
 #define redPin 10
 #define greenPin 11
-//#define bluePin 12
+#define bluePin 12
 
-#define DRSPin 12
+#define DRSPin 9
 
 // Motor Speeds
 int leftSpeed = 0;
 int rightSpeed = 0;
-int baseSpeed = 180; // Base speed for the motors (0–255)
+int baseSpeed = 220; // Base speed for the motors (0–255)
 
 //Node detection settings
-const int forwardDelay = 75;   // Time to move across line slightly
-const int stopDelay = 0;     // Stopping Time at node
-const int rotationTime = 850;   // Time to turn 180 degrees
-const int turningTime = 375;    // Time to make a 90 degree turn 
+const int forwardDelay = 50;   // Time to move across line slightly
+const int stopDelay = 10;     // Stopping Time at node
+const int rotationTime = 630;   // Time to turn 180 degrees
+const int turningTime = 350;    // Time to make a 90 degree turn 
 
 // Wi-Fi credentials
 const char *ssid = "iot";                // Replace with your Wi-Fi SSID
@@ -61,9 +61,9 @@ int colorIndex = 0;
 const int PIDThreshold = 20;
 
 // PID parameters
-float Kp = 0.35; // Proportional gain (0.35)
+float Kp = 0.62; // Proportional gain (0.35)
 float Ki = 0.0;  // Integral gain (set to 0.00001 initially)
-float Kd = 0.20;  // Derivative gain   (0.2)
+float Kd = 0.25;  // Derivative gain   (0.2)
 
 float Pvalue = 0;
 float Ivalue = 0;
@@ -102,7 +102,7 @@ bool forwardDirection = true;   //Start with forward direction
 String route = "";
 int updatedPath[MAX_PATH_SIZE];  // Final path with virtual nodes
 int updatedPathSize = 0;  // Size of the updated path
-int currentPathIndex = 0;
+int pathIndex = 0;
 int pathLength = 0;
 
 // Wifi class
@@ -117,7 +117,7 @@ void setup() {
 
   pinMode(redPin, OUTPUT);
   pinMode(greenPin, OUTPUT);
-  //pinMode(bluePin, OUTPUT);
+  pinMode(bluePin, OUTPUT);
 
   pinMode(DRSPin, OUTPUT);
 
@@ -152,10 +152,10 @@ void setup() {
 }
 
 void loop() {
-  //readLineSensors();
-  //followPath();
-  //followLine();
-  rainbowFade(10);
+  readLineSensors();
+  followPath();
+  followLine();
+  //rainbowFade(10);
 }
 
 //-------------------------------------------------------------
@@ -432,45 +432,51 @@ void obstacleDetection(){
 //-----------------Path Following Logic------------------------
 //------------------------------------------------------------
 void followPath(){
-  if (detectNode()){
+  if (!detectNode()) {
+    return;
+  }
 
-    // Stop robot at line and move slightly over
-    driveMotor(0, 0); // Stop the robot
-    driveMotor(80, 80); // Drive forward at low speed
-    delay(forwardDelay);          // Move slightly forward to cross the line
-    driveMotor(0, 0);   // Stop again
-    delay(stopDelay);         // Wait for 1 second before resuming
+  // Stop robot at line and move slightly over
+  driveMotor(0, 0); // Stop the robot
+  driveMotor(80, 80); // Drive forward at low speed
+  delay(forwardDelay); // Move slightly forward to cross the line
+  driveMotor(0, 0); // Stop again
+  delay(stopDelay); // Wait for 1 second before resuming
 
-    //Dont update position if node is 0 and 6 and 7
-    if (currentPosition != 6 && currentPosition != 7) {
-      nextPosition = sendPosition(currentPosition);
+  //if (currentPosition == -5) {
+  //  currentPosition = updatedPath[0];
+  //  return;
+  //}
+  if (currentPosition != 6 && currentPosition != 7){
+    sendPosition(currentPosition);
+  }
 
-      // Handle finished logic
-      if (nextPosition == -2) {
-      Serial.println("Destination Reached");
-      driveMotor(0, 0);       //stop mobot
-      // Keep mobot stopped
-      while (true) {
-        delay(1000);
-      }
+  Serial.println(pathIndex);
+  
+  //Check if mobot is at the end of path
+  if (pathIndex >= pathLength - 1) {
+    Serial.println("Path complete");
+    driveMotor(0, 0);
+    while (true) {
+      setColour(0,255,0);
+      delay(300);
+      setColour(0,0,0);
+      delay(300);
     }
   }
 
-    // Get next position and direction
-    int nextPosition = updatedPath[currentPathIndex + 1];
-    int direction = getDynamicDirection(currentPosition, nextPosition, lastPosition);
+  // Get next position and direction
+  int nextPosition = updatedPath[pathIndex + 1];
+  int direction = getDynamicDirection(currentPosition, nextPosition, lastPosition);
 
-    // Check if Direction is valid
-    if (direction != -1) {
-      choosePath(direction);
-      lastPosition = currentPosition;
-      currentPosition = nextPosition;
-      currentPathIndex++;
-    } else {
-      Serial.println("Error: No valid path found");
-    }
+  // Check if Direction is valid
+  if (direction != -1) {
+    choosePath(direction);
+    lastPosition = currentPosition;
+    currentPosition = nextPosition;
+    pathIndex++;
   } else {
-    return;
+    Serial.println("Error: No valid path found");
   }
 }
 
@@ -594,10 +600,10 @@ void choosePath(int direction){
 //-------------------------------------------------------------
 
 // Function to set RGB color
-void setColor(int r, int g, int b) {
+void setColour(int r, int g, int b) {
     analogWrite(redPin, r);
     analogWrite(greenPin, g);
-    //analogWrite(bluePin, b);
+    analogWrite(bluePin, b);
 }
 
 // Function to generate rainbow colors
@@ -611,7 +617,7 @@ void rainbowFade(int wait) {
         int g = sin((colorIndex * 3.14159 / 128) + 2.09439) * 127 + 128;
         int b = sin((colorIndex * 3.14159 / 128) + 4.18878) * 127 + 128;
 
-        setColor(r, g, b);
+        setColour(r, g, b);
 
         colorIndex++;
         if (colorIndex >= 256) colorIndex = 0; // Reset after full cycle
