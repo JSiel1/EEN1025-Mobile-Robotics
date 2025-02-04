@@ -20,6 +20,10 @@
 #define motor2Phase 36  // Right motor phase
 #define stopSensor 1    //obbstacle detection sensor
 
+#define redPin 10
+#define greenPin 11
+#define bluePin 12
+
 // Motor Speeds
 int leftSpeed = 0;
 int rightSpeed = 0;
@@ -55,6 +59,9 @@ float Pvalue = 0;
 float Ivalue = 0;
 float Dvalue = 0;
 int previousError = 0;
+
+unsigned long previousMillis = 0;
+int colorIndex = 0;
 
 // Adjacency Matrix: -1 means no path
 const int nodeCount = 8; // Number of nodes
@@ -113,6 +120,7 @@ void loop() {
   readLineSensors();
   followPath();
   followLine();
+  rainbowFade(10); // Smooth transition with 10ms delay
 }
 
 //-------------------------------------------------------------
@@ -530,4 +538,32 @@ void choosePath(int direction){
       driveMotor(0, 0);
       break;
   }
+}
+
+
+//---------------------------------LED---------------------------------------
+
+// Function to set RGB color
+void setColor(int r, int g, int b) {
+    analogWrite(redPin, r);
+    analogWrite(greenPin, g);
+    analogWrite(bluePin, b);
+}
+
+// Function to generate rainbow colors
+void rainbowFade(int wait) {
+    unsigned long currentMillis = millis();
+    
+    if (currentMillis - previousMillis >= wait) {
+        previousMillis = currentMillis;
+
+        int r = sin((colorIndex * 3.14159 / 128) + 0) * 127 + 128;
+        int g = sin((colorIndex * 3.14159 / 128) + 2.09439) * 127 + 128;
+        int b = sin((colorIndex * 3.14159 / 128) + 4.18878) * 127 + 128;
+
+        setColor(r, g, b);
+
+        colorIndex++;
+        if (colorIndex >= 256) colorIndex = 0; // Reset after full cycle
+    }
 }
