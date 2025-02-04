@@ -12,6 +12,7 @@
 
 // Buffer Size
 #define BUFSIZE 512
+#define MAX_PATH_SIZE 20
 
 // Motor pins
 #define motor1PWM 37  // Left motor enable (PWM)
@@ -86,7 +87,6 @@ const int adjacencyList[nodeCount][3] = {
 const char *serverIP = "3.250.38.184"; // Server IP address
 const int serverPort = 8000;          // Server port
 const char *teamID = "rhtr2655";      // Replace with your team's ID
-String route = "";
 
 bool isRunning = false;
 
@@ -97,6 +97,13 @@ int nextPosition = 0;
 int originalDestination = -1;
 int lastPosition = -1;
 bool forwardDirection = true;   //Start with forward direction
+
+//Route re-writing
+String route = "";
+int updatedPath[MAX_PATH_SIZE];  // Final path with virtual nodes
+int updatedPathSize = 0;  // Size of the updated path
+int currentPathIndex = 0;
+int pathLength = 0;
 
 // Wifi class
 WiFiClient client;
@@ -129,7 +136,14 @@ void setup() {
 
   // Obtain path
   route = getRoute();
-  Serial.println(route);
+  adjustRoute();
+  pathLength = sizeof(updatedPath) / sizeof(updatedPath[0]);
+
+  Serial.print("Updated Path: ");
+  for (int i = 0; i < updatedPathSize; i++) {
+    Serial.print(updatedPath[i]);
+    if (i < updatedPathSize - 1) Serial.print(", ");
+  }
 
   //delay before starting 
   delay(1000);
@@ -416,62 +430,49 @@ void obstacleDetection(){
 
 //-------------------------------------------------------------
 //-----------------Path Following Logic------------------------
-//-------------------------------------------------------------
+//------------------------------------------------------------
+void followPath(){
+  if (detectNode()){
 
-//void followPath(){
-//  if (!detectNode()){
-//    return;
-//  }
-//
-//  // Stop robot at line and move slightly over
-//  driveMotor(0, 0); // Stop the robot
-//  driveMotor(80, 80); // Drive forward at low speed
-//  delay(forwardDelay);          // Move slightly forward to cross the line
-//  driveMotor(0, 0);   // Stop again
-//  delay(stopDelay);         // Wait for 1 second before resuming
-//
-//  //Dont update position if node is 0 and 6 and 7
-//  if (currentPosition != 6 && currentPosition != 7) {
-//    nextPosition = sendPosition(currentPosition);
-//
-//    // Handle finished logic
-//    if (nextPosition == -2) {
-//      Serial.println("Destination Reached");
-//      driveMotor(0, 0);       //stop mobot
-//      // Keep mobot stopped
-//      while (true) {
-//        delay(1000);
-//      }
-//    }
-//  } else if (currentPosition == 6 || currentPosition == 7) {
-//    nextPosition = originalDestination;
-//  }
-//
-//  bool virtualNode = requiresVirtualNode(currentPosition, nextPosition);
-//
-//  if (virtualNode) {
-//    originalDestination = nextPosition;
-//    nextPosition = getVirtualNode(currentPosition, nextPosition);
-//    Serial.println("Original Destination saved and Virtual Node inserted");
-//  } else {
-//    // Debug Remove After
-//    Serial.println("Direct Path found, No virtual node needed");          ///////REMOVE AFER
-//  }
-//
-//  int direction = getDynamicDirection(currentPosition, nextPosition, lastPosition);
-//  Serial.println(direction);
-//  // Check if finished
-//
-//  if (direction != -1) {
-//    choosePath(direction);
-//    lastPosition = currentPosition;
-//    currentPosition = nextPosition;
-//  } else {
-//    // Debug
-//    Serial.println("Error: No Valid Path found between " + String(currentPosition) + " -> " + String(nextPosition));
-//  }
-//
-//}
+    // Stop robot at line and move slightly over
+    driveMotor(0, 0); // Stop the robot
+    driveMotor(80, 80); // Drive forward at low speed
+    delay(forwardDelay);          // Move slightly forward to cross the line
+    driveMotor(0, 0);   // Stop again
+    delay(stopDelay);         // Wait for 1 second before resuming
+
+    //Dont update position if node is 0 and 6 and 7
+    if (currentPosition != 6 && currentPosition != 7) {
+      nextPosition = sendPosition(currentPosition);
+
+      // Handle finished logic
+      if (nextPosition == -2) {
+      Serial.println("Destination Reached");
+      driveMotor(0, 0);       //stop mobot
+      // Keep mobot stopped
+      while (true) {
+        delay(1000);
+      }
+    }
+  }
+
+    // Get next position and direction
+    int nextPosition = updatedPath[currentPathIndex + 1];
+    int direction = getDynamicDirection(currentPosition, nextPosition, lastPosition);
+
+    // Check if Direction is valid
+    if (direction != -1) {
+      choosePath(direction);
+      lastPosition = currentPosition;
+      currentPosition = nextPosition;
+      currentPathIndex++;
+    } else {
+      Serial.println("Error: No valid path found");
+    }
+  } else {
+    return;
+  }
+}
 
 int getDynamicDirection(int currentNode, int targetPosition, int lastPosition) {
   // Handle dynamic mapping for Node 6
@@ -628,3 +629,49 @@ void switchDRS(bool DRSPosition){
     digitalWrite(DRSPin, LOW);
   }
 }
+
+//-------------------------------------------------------------
+//----------------------Route-Adjusting------------------------
+//-------------------------------------------------------------
+void adjustRoute() {
+  int path[MAX_PATH_SIZE];  // Store the parsed path
+  int pathSize = 0;
+
+  // Parse the route string
+  char buffer[50];
+  route.toCharArray(buffer, sizeof(buffer));
+  char* token = strtok(buffer, ",");
+  while (token != NULL && pathSize < MAX_PATH_SIZE) {
+    path[pathSize++] = atoi(token);
+    token = strtok(NULL, ",");
+  }
+
+  // Compute full path with virtual nodes
+  updatedPathSize = 0;
+  for (int i = 0; i < pathSize - 1; i++) {
+    int current = path[i];
+    int next = path[i + 1];
+
+    // Add current node to the final path
+    updatedPath[updatedPathSize++] = current;
+
+    // Check if a virtual node is needed
+    if (requiresVirtualNode(current, next) && updatedPathSize < MAX_PATH_SIZE) {
+      int virtualNode = getVirtualNode(current, next);
+      updatedPath[updatedPathSize++] = virtualNode;
+    }
+
+    // Use getDynamicDirection to handle special dynamic cases (virtual nodes or path deviations)
+    if ((current == 6 || current == 7) && updatedPathSize < MAX_PATH_SIZE) {
+      int lastPosition = i > 0 ? path[i - 1] : current;  // Last position for dynamic routing
+      int dynamicNext = getDynamicDirection(current, next, lastPosition);
+      updatedPath[updatedPathSize++] = dynamicNext;  // Insert the dynamic direction if needed
+    }
+  }
+
+  // Add the last node
+  if (updatedPathSize < MAX_PATH_SIZE) {
+    updatedPath[updatedPathSize++] = path[pathSize - 1];
+  }
+}
+
