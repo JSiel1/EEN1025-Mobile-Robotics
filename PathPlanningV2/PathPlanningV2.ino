@@ -34,7 +34,7 @@ int baseSpeed = 220; // Base speed for the motors (0–255)
 
 //Node detection settings
 const int forwardDelay = 50;   // Time to move across line slightly
-const int stopDelay = 10;     // Stopping Time at node
+const int stopDelay = 0;     // Stopping Time at node
 const int rotationTime = 630;   // Time to turn 180 degrees
 const int turningTime = 350;    // Time to make a 90 degree turn 
 
@@ -137,7 +137,9 @@ void setup() {
   // Obtain path
   route = getRoute();
   adjustRoute();
-  pathLength = sizeof(updatedPath) / sizeof(updatedPath[0]);
+  //pathLength = sizeof(updatedPath) / sizeof(updatedPath[0]);
+
+  Serial.println(pathLength);
 
   Serial.print("Updated Path: ");
   for (int i = 0; i < updatedPathSize; i++) {
@@ -439,14 +441,10 @@ void followPath(){
   // Stop robot at line and move slightly over
   driveMotor(0, 0); // Stop the robot
   driveMotor(80, 80); // Drive forward at low speed
-  delay(forwardDelay); // Move slightly forward to cross the line
+  //delay(forwardDelay); // Move slightly forward to cross the line
   driveMotor(0, 0); // Stop again
-  delay(stopDelay); // Wait for 1 second before resuming
+  //delay(stopDelay); // Wait for 1 second before resuming
 
-  //if (currentPosition == -5) {
-  //  currentPosition = updatedPath[0];
-  //  return;
-  //}
   if (currentPosition != 6 && currentPosition != 7){
     sendPosition(currentPosition);
   }
@@ -577,7 +575,7 @@ void choosePath(int direction){
       break;
     case 1:                                   // Straight
       driveMotor(baseSpeed, baseSpeed);
-      delay(500);                             // Adjust the delay based on distance
+      delay(forwardDelay);                             // Adjust the delay based on distance
       break;
     case 2:                                   // Left
       left();
@@ -640,44 +638,61 @@ void switchDRS(bool DRSPosition){
 //----------------------Route-Adjusting------------------------
 //-------------------------------------------------------------
 void adjustRoute() {
-  int path[MAX_PATH_SIZE];  // Store the parsed path
-  int pathSize = 0;
+  // Step 1: Determine number of nodes in `route`
+  int pathSize = 1;  // At least one node exists
+  for (int i = 0; i < route.length(); i++) {
+    if (route[i] == ',') {
+      pathSize++;
+    }
+  }
 
-  // Parse the route string
-  char buffer[50];
+  // Step 2: Parse the route into `path` array
+  int path[pathSize];  // Create an array of exactly the needed size
+  int tempUpdatedPath[pathSize * 2];  // Temporary array (allow room for virtual nodes)
+  int pathIndex = 0;
+
+  char buffer[route.length() + 1];  // Copy route into char buffer for strtok
   route.toCharArray(buffer, sizeof(buffer));
   char* token = strtok(buffer, ",");
-  while (token != NULL && pathSize < MAX_PATH_SIZE) {
-    path[pathSize++] = atoi(token);
+
+  while (token != NULL && pathIndex < pathSize) {
+    path[pathIndex++] = atoi(token);
     token = strtok(NULL, ",");
   }
 
-  // Compute full path with virtual nodes
+  // Step 3: Compute full path with virtual nodes
   updatedPathSize = 0;
   for (int i = 0; i < pathSize - 1; i++) {
     int current = path[i];
     int next = path[i + 1];
 
-    // Add current node to the final path
-    updatedPath[updatedPathSize++] = current;
+    // Add current node to final path
+    tempUpdatedPath[updatedPathSize++] = current;
 
     // Check if a virtual node is needed
-    if (requiresVirtualNode(current, next) && updatedPathSize < MAX_PATH_SIZE) {
+    if (requiresVirtualNode(current, next)) {
       int virtualNode = getVirtualNode(current, next);
-      updatedPath[updatedPathSize++] = virtualNode;
+      tempUpdatedPath[updatedPathSize++] = virtualNode;
     }
 
-    // Use getDynamicDirection to handle special dynamic cases (virtual nodes or path deviations)
-    if ((current == 6 || current == 7) && updatedPathSize < MAX_PATH_SIZE) {
-      int lastPosition = i > 0 ? path[i - 1] : current;  // Last position for dynamic routing
+    // Handle dynamic cases for positions 6 & 7
+    if (current == 6 || current == 7) {
+      int lastPosition = (i > 0) ? path[i - 1] : current;
       int dynamicNext = getDynamicDirection(current, next, lastPosition);
-      updatedPath[updatedPathSize++] = dynamicNext;  // Insert the dynamic direction if needed
+      tempUpdatedPath[updatedPathSize++] = dynamicNext;
     }
   }
 
   // Add the last node
-  if (updatedPathSize < MAX_PATH_SIZE) {
-    updatedPath[updatedPathSize++] = path[pathSize - 1];
+  tempUpdatedPath[updatedPathSize++] = path[pathSize - 1];
+
+  // Step 4: Copy only the necessary part of tempUpdatedPath into updatedPath
+  for (int i = 0; i < updatedPathSize && i < MAX_PATH_SIZE; i++) {
+    updatedPath[i] = tempUpdatedPath[i];
   }
+
+  // Update pathLength to reflect the actual size
+  pathLength = updatedPathSize;
 }
+
 
