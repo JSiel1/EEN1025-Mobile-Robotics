@@ -20,6 +20,12 @@
 #define motor2Phase 36  // Right motor phase
 #define stopSensor 1    //obbstacle detection sensor
 
+#define redPin 10
+#define greenPin 11
+//#define bluePin 12
+
+#define DRSPin 12
+
 // Motor Speeds
 int leftSpeed = 0;
 int rightSpeed = 0;
@@ -45,6 +51,13 @@ int sensorValues[sensorCount];
 const int whiteThreshold = 270; // Around 200 for white line
 const int blackThreshold = 2700; // Around 2700 for black surface
 const int obstacleThreshold = 1100;  //Obstacle Sensitivity
+
+//LED variables
+unsigned long previousMillis = 0;
+int colorIndex = 0;
+
+//DRS variables
+const int PIDThreshold = 20;
 
 // PID parameters
 float Kp = 0.35; // Proportional gain (0.35)
@@ -73,6 +86,7 @@ const int adjacencyList[nodeCount][3] = {
 const char *serverIP = "3.250.38.184"; // Server IP address
 const int serverPort = 8000;          // Server port
 const char *teamID = "rhtr2655";      // Replace with your team's ID
+String route = "";
 
 bool isRunning = false;
 
@@ -94,6 +108,12 @@ void setup() {
   pinMode(motor2Phase, OUTPUT);
   pinMode(motor2PWM, OUTPUT);
 
+  pinMode(redPin, OUTPUT);
+  pinMode(greenPin, OUTPUT);
+  //pinMode(bluePin, OUTPUT);
+
+  pinMode(DRSPin, OUTPUT);
+
   pinMode(stopSensor, INPUT);
   for (int i = 0; i < sensorCount; i++){
     pinMode(IR_PINS[i], INPUT);
@@ -101,18 +121,23 @@ void setup() {
 
   // Start serial communication
   Serial.begin(115200);
+  
+  switchDRS(1);
 
   // Connect to Wi-Fi
   connectToWiFi();
 
   //delay before starting 
   delay(1000);
+
+  switchDRS(0);
 }
 
 void loop() {
   readLineSensors();
   followPath();
   followLine();
+  rainbowFade(10);
 }
 
 //-------------------------------------------------------------
@@ -259,6 +284,12 @@ void followLine() {
   } else {
     leftSpeed = baseSpeed - PIDvalue;
     rightSpeed = baseSpeed + PIDvalue;
+  }
+
+  if (PIDvalue > PIDThreshold){
+    switchDRS(1);
+  } else {
+    switchDRS(0);
   }
 
   // Constrain motor speeds
@@ -529,5 +560,46 @@ void choosePath(int direction){
       Serial.println("Error: Direction Invalid");
       driveMotor(0, 0);
       break;
+  }
+}
+
+//-------------------------------------------------------------
+//---------------------------------LED-------------------------
+//-------------------------------------------------------------
+
+// Function to set RGB color
+void setColor(int r, int g, int b) {
+    analogWrite(redPin, r);
+    analogWrite(greenPin, g);
+    //analogWrite(bluePin, b);
+}
+
+// Function to generate rainbow colors
+void rainbowFade(int wait) {
+    unsigned long currentMillis = millis();
+    
+    if (currentMillis - previousMillis >= wait) {
+        previousMillis = currentMillis;
+
+        int r = sin((colorIndex * 3.14159 / 128) + 0) * 127 + 128;
+        int g = sin((colorIndex * 3.14159 / 128) + 2.09439) * 127 + 128;
+        int b = sin((colorIndex * 3.14159 / 128) + 4.18878) * 127 + 128;
+
+        setColor(r, g, b);
+
+        colorIndex++;
+        if (colorIndex >= 256) colorIndex = 0; // Reset after full cycle
+    }
+}
+
+//-------------------------------------------------------------
+//---------------------------------DRS-------------------------
+//-------------------------------------------------------------
+
+void switchDRS(bool DRSPosition){
+  if (DRSPosition) {
+    digitalWrite(DRSPin, HIGH);
+  } else {
+    digitalWrite(DRSPin, LOW);
   }
 }
