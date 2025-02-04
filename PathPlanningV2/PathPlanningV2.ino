@@ -15,6 +15,12 @@
 #define motor2Phase 36  // Right motor phase
 #define stopSensor 1
 
+#define redPin 10
+#define greenPin 11
+#define bluePin 12
+
+#define DRSPin 9
+
 // Motor Speeds
 int leftSpeed = 0;
 int rightSpeed = 0;
@@ -68,6 +74,10 @@ int currentPathIndex = 0;
 
 bool forwardDirection = true;   //Start with forward direction
 int lastPosition = -1;
+
+//RGB Variables
+unsigned long previousMillis = 0;
+int colorIndex = 0;
 
 void setup() {
   // Set motor pins as output

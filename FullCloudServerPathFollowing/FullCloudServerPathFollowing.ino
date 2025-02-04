@@ -24,6 +24,8 @@
 #define greenPin 11
 #define bluePin 12
 
+#define DRSPin 9
+
 // Motor Speeds
 int leftSpeed = 0;
 int rightSpeed = 0;
@@ -101,6 +103,12 @@ void setup() {
   pinMode(motor2Phase, OUTPUT);
   pinMode(motor2PWM, OUTPUT);
 
+  pinMode(redPin, OUTPUT);
+  pinMode(greenPin, OUTPUT);
+  pinMode(bluePin, OUTPUT);
+
+  pinMode(DRSPin, OUTPUT);
+
   pinMode(stopSensor, INPUT);
   for (int i = 0; i < sensorCount; i++){
     pinMode(IR_PINS[i], INPUT);
@@ -109,11 +117,15 @@ void setup() {
   // Start serial communication
   Serial.begin(115200);
 
+  //Test DRS
+  switchDRS(1);
+
   // Connect to Wi-Fi
   connectToWiFi();
 
   //delay before starting 
   delay(1000);
+  switchDRS(0);
 }
 
 void loop() {
@@ -218,6 +230,8 @@ String getResponseBody(String& response) {
   body.trim();
   return body;
 }
+
+
 
 //-------------------------------------------------------------
 //-----------------Line Following Logic------------------------
@@ -540,8 +554,9 @@ void choosePath(int direction){
   }
 }
 
-
-//---------------------------------LED---------------------------------------
+//-------------------------------------------------------------
+//---------------------------------LED-------------------------
+//-------------------------------------------------------------
 
 // Function to set RGB color
 void setColor(int r, int g, int b) {
@@ -567,3 +582,16 @@ void rainbowFade(int wait) {
         if (colorIndex >= 256) colorIndex = 0; // Reset after full cycle
     }
 }
+
+//-------------------------------------------------------------
+//---------------------------------DRS-------------------------
+//-------------------------------------------------------------
+
+void switchDRS(bool DRSPosition){
+  if (DRSPosition) {
+    digitalWrite(DRSPin, HIGH);
+  } else {
+    digitalWrite(DRSPin, LOW);
+  }
+}
+
