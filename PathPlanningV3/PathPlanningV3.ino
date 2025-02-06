@@ -144,22 +144,19 @@ void setup() {
   // Obtain path
   //route = getRoute();
 
-  route = "0,1,2";
+  route = "0,1,4,2,0,3";
   //Convert to array
   adjustPath();
 
+  //Find shortest path and save to arrray
   computePath();
 
-  Serial.print("Shortest Path Length:");
-  Serial.print(updatedPathLength);
-  Serial.println("");
-
-  Serial.print("Shortest path: ");
-  for (int i = updatedPathLength - 1; i >= 0; i--) {
-    Serial.print(updatedPath[i]);
-    if (i > 0) Serial.print(" -> ");
-  }
-  Serial.println();
+  //Serial.print("Shortest path: ");
+  //for (int i = updatedPathLength - 1; i >= 0; i--) {
+  //  Serial.print(updatedPath[i]);
+  //  if (i > 0) Serial.print(" -> ");
+  //}
+  //Serial.println();
 
   while (1){
     delay(1000);
@@ -673,7 +670,7 @@ void computePath() {
   // Iterate over each consecutive pair in the global route.
   for (int i = 0; i < pathLength - 1; i++) {
     // Compute the shortest path from path[i] to path[i+1]
-    shortestPath(path[i], path[i + 1], tempPath, tempPathLength);
+    shortestPath(path[i+1], path[i], tempPath, tempPathLength);
 
     // If no path was found, print an error and reset updatedPathLength.
     if (tempPathLength == 0) {
@@ -684,17 +681,9 @@ void computePath() {
       updatedPathLength = 0;
       return;
     }
-    
-    // Reverse the temporary path since shortestPath fills it in reverse order.
-    //for (int j = 0; j < tempPathLength / 2; j++) {
-    //  int swapTemp = tempPath[j];
-    //  tempPath[j] = tempPath[tempPathLength - 1 - j];
-    //  tempPath[tempPathLength - 1 - j] = swapTemp;
-    //}
-    
+        
     // append the path
     int startIndex = (i == 0) ? 0 : 1;
-    
     for (int j = startIndex; j < tempPathLength; j++) {
       updatedPath[updatedPathLength++] = tempPath[j];
     }
