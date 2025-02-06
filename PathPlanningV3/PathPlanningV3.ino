@@ -145,10 +145,14 @@ void setup() {
   //route = getRoute();
 
   route = "0,1,2";
+  //Convert to array
   adjustPath();
-  Serial.println(pathLength);
-  shortestPath(0,2);
-  Serial.println(updatedPathLength);
+
+  computePath();
+
+  Serial.print("Shortest Path Length:");
+  Serial.print(updatedPathLength);
+  Serial.println("");
 
   Serial.print("Shortest path: ");
   for (int i = updatedPathLength - 1; i >= 0; i--) {
@@ -564,20 +568,23 @@ void adjustPath() {
     }
   }
 
-  // Step 2: Dynamically allocate memory for the array
-  int* path = new int[pathLength];
+  // Check if the pathLength exceeds the max size
+  if (pathLength > MAX_PATH_SIZE) {
+    Serial.println("Error: Path length exceeds MAX_PATH_SIZE.");
+    return;
+  }
 
-  // Step 3: Parse the route string into the array
+  // Step 2: Parse the route string into the array
   int index = 0;
   char* routeCopy = strdup(route.c_str());
   char* token = strtok(routeCopy, ",");
-  while (token != nullptr) {
+  while (token != nullptr && index < pathLength) {
     path[index++] = atoi(token);
     token = strtok(nullptr, ",");
   }
   free(routeCopy);
   
-  // Step 4: Print the parsed path for debugging
+  // Step 3: Print the parsed path for debugging
   Serial.println("Route parsed successfully into an array.");
   Serial.print("Path: ");
   for (int i = 0; i < pathLength; i++) {
@@ -587,9 +594,6 @@ void adjustPath() {
     }
   }
   Serial.println();
-  
-  // Step 5: Clean up dynamically allocated memory
-  delete[] path;
 }
 
 //-------------------------------------------------------------
@@ -611,7 +615,7 @@ int findMinDistance(int distances[], bool visited[]) {
 }
 
 //Find Dijkstra shortest path and update path array 
-void shortestPath(int startNode, int endNode) {
+void shortestPath(int startNode, int endNode, int tempPath[], int &tempPathLength) {
   int distances[nodeCount];
   bool visited[nodeCount];
   int previous[nodeCount];
@@ -638,16 +642,64 @@ void shortestPath(int startNode, int endNode) {
       }
     }
   }
-
-  updatedPathLength = 0;
+  
+  tempPathLength = 0;
   for (int at = endNode; at != -1; at = previous[at]) {
-    updatedPath[updatedPathLength++] = at;
+    tempPath[tempPathLength++] = at;
   }
+  
   if (distances[endNode] == INF) {
     Serial.println("No path found.");
+    tempPathLength = 0;
   }
 }
 
+void computePath() {
+  updatedPathLength = 0;
+  
+  // If there is no or only one node in the route, just copy it over.
+  if (pathLength <= 0)
+    return;
+  if (pathLength == 1) {
+    updatedPath[0] = path[0];
+    updatedPathLength = 1;
+    return;
+  }
+  
+  // Temporary array to hold the shortest path between two nodes.
+  int tempPath[MAX_PATH_SIZE];
+  int tempPathLength;
+  
+  // Iterate over each consecutive pair in the global route.
+  for (int i = 0; i < pathLength - 1; i++) {
+    // Compute the shortest path from path[i] to path[i+1]
+    shortestPath(path[i], path[i + 1], tempPath, tempPathLength);
+
+    // If no path was found, print an error and reset updatedPathLength.
+    if (tempPathLength == 0) {
+      Serial.print("No path found between ");
+      Serial.print(path[i]);
+      Serial.print(" and ");
+      Serial.println(path[i + 1]);
+      updatedPathLength = 0;
+      return;
+    }
+    
+    // Reverse the temporary path since shortestPath fills it in reverse order.
+    //for (int j = 0; j < tempPathLength / 2; j++) {
+    //  int swapTemp = tempPath[j];
+    //  tempPath[j] = tempPath[tempPathLength - 1 - j];
+    //  tempPath[tempPathLength - 1 - j] = swapTemp;
+    //}
+    
+    // append the path
+    int startIndex = (i == 0) ? 0 : 1;
+    
+    for (int j = startIndex; j < tempPathLength; j++) {
+      updatedPath[updatedPathLength++] = tempPath[j];
+    }
+  }
+}
 
 //-------------------------------------------------------------
 //---------------------------LED-------------------------------
