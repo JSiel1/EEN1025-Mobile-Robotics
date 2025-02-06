@@ -143,11 +143,12 @@ void setup() {
 
   // Obtain path
   //route = getRoute();
+
   route = "0,1,2";
   adjustPath();
-
-  
-  shortestPath(0,1);
+  Serial.println(pathLength);
+  shortestPath(0,2);
+  Serial.println(updatedPathLength);
 
   Serial.print("Shortest path: ");
   for (int i = updatedPathLength - 1; i >= 0; i--) {
