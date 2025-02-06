@@ -144,7 +144,7 @@ void setup() {
   // Obtain path
   //route = getRoute();
 
-  route = "0,1,4,2,0,3";
+  route = "0,1,2,3";
   //Convert to array
   adjustPath();
 
@@ -651,6 +651,7 @@ void shortestPath(int startNode, int endNode, int tempPath[], int &tempPathLengt
   }
 }
 
+// calculate shortest path for entire route
 void computePath() {
   updatedPathLength = 0;
   
