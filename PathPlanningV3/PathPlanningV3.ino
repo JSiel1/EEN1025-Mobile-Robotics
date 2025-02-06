@@ -1,11 +1,11 @@
 /*************************************************
-* File Name:        [FullCloudCommunication.ino]
-* Description:      [Full PID, path following and cloud communication with obstacle sensor]
+* File Name:        [PathPlanningV3.ino]
+* Description:      []
 * Author:           [Group 14]
-* Created On:       [29/01/2025]
-* Last Modified On: [31/01/2025]
-* Version:          [1.2]
-* Last Changes:     [Fixed Issues with Virtual node looping]
+* Created On:       [06/02/2025]
+* Last Modified On: [06/02/2025]
+* Version:          [3]
+* Last Changes:     []
 *************************************************/
 
 #include <WiFi.h>
@@ -42,7 +42,7 @@ const int turningTime = 350;    // Time to make a 90 degree turn
 // Wi-Fi credentials
 const char *ssid = "iot";                // Replace with your Wi-Fi SSID
 //const char *password = "manganese30sulphating"; // Replace with your Wi-Fi password
-const char *password = "overtechnicality7petrophilous";
+const char *password = "overtechnicality7petrophilous";   // Secondary ESP32 
 
 
 // IR sensor pins (only outermost sensors are used)
@@ -76,30 +76,17 @@ int previousError = 0;
 
 const int nodeCount = 8; // Number of nodes
 
-// ----- Weighted Adjacency Matrix -----
-// Rows/columns represent nodes 0..7. A cell value (e.g. 1) indicates the cost.
-// INF indicates no direct connection.
+// Adjacency Matrix
 int weightMatrix[nodeCount][nodeCount] = {
-  //    0     1     2     3     4     5     6     7
-  {    0, INF, INF, INF,    1, INF,    1, INF }, // Node 0: connects to 4 and 6
-  { INF,    0, INF, INF, INF, INF,    1,    1 }, // Node 1: connects to 6 and 7
-  { INF, INF,    0,    1, INF, INF,    1, INF }, // Node 2: connects to 3 and 6
-  { INF, INF,    1,    0, INF, INF, INF,    1 }, // Node 3: connects to 2 and 7
-  {    1, INF, INF, INF,    0, INF, INF,    1 }, // Node 4: connects to 0 and 7
-  { INF, INF, INF, INF, INF,    0, INF, INF },    // Node 5: isolated
-  {    1,    1,    1, INF, INF, INF,    0, INF }, // Node 6: junction (nodes 0,1,2)
-  { INF,    1, INF,    1,    1, INF, INF,    0 }  // Node 7: junction (nodes 1,3,4)
-};
-
-const int adjacencyList[nodeCount][3] = {
-  { 4, 6, -1 },     // Node 0: {Back=-4, Straight=6, Left=NONE}
-  { 6, 7, -1 },     // Node 1: {Back=6, Straight=7, Left=NONE}
-  { 6, 3, -1 },     // Node 2: {Back=6, Straight=3, Left=NONE}
-  { 2, 7, -1 },     // Node 3: {Back=2, Straight=7, Left=NONE}
-  { 7, 0, -1 },     // Node 4: {Back=7, Straight=0, Left=NONE}
-  { -1, -1, -1 },   // Node 5: {Back=NONE, Straight=NONE, Left=NONE}
-  { 0, 2, 1 },      // Node 6: {Back=0, Straight=2, Left=1}
-  { 3, 4, 1 }       // Node 7: {Back=3, Straight=4, Left=1}
+  //   0    1     2     3    4    5     6     7
+  {    0, INF,  INF,  INF,   1, INF,    1, INF },    // Node 0: connects to 4 and 6
+  { INF,    0,  INF,  INF, INF, INF,    1,   1 },    // Node 1: connects to 6 and 7
+  { INF,  INF,    0,    1, INF, INF,    1, INF },    // Node 2: connects to 3 and 6
+  { INF,  INF,    1,    0, INF, INF,  INF,   1 },    // Node 3: connects to 2 and 7
+  {   1,  INF,  INF,  INF,   0, INF,  INF,   1 },    // Node 4: connects to 0 and 7
+  { INF,  INF,  INF,  INF, INF,   0,  INF, INF },    // Node 5: isolated
+  {   1,    1,    1,  INF, INF, INF,    0, INF },    // Node 6: junction (nodes 0,1,2)
+  { INF,    1,  INF,    1,   1, INF,  INF,   0 }     // Node 7: junction (nodes 1,3,4)
 };
 
 // Server details
@@ -107,26 +94,23 @@ const char *serverIP = "3.250.38.184"; // Server IP address
 const int serverPort = 8000;          // Server port
 const char *teamID = "rhtr2655";      // Replace with your team's ID
 
-bool isRunning = false;
-
 // Position Variables
 int startingPosition = 0;  // Initial position of the robot
 int currentPosition = startingPosition;   // Track the robot's current position
 int nextPosition = 0;
-int originalDestination = -1;
 int lastPosition = -1;
+
 bool forwardDirection = true;   //Start with forward direction
 
 //Route re-writing
 String route = "";
-int finalPath[MAX_PATH_SIZE];  // Final path with virtual nodes
-int pathSize = 0;  // Size of the updated path
-int pathIndex = 0;
-int finalPathLength = 0;
 
+int path[MAX_PATH_SIZE];  // Final path with virtual nodes
+int pathLength = 0;  // Size of the updated path
 int updatedPath[MAX_PATH_SIZE];
 int updatedPathLength = 0;
 
+int pathIndex = 0;
 
 // Wifi class
 WiFiClient client;
@@ -155,22 +139,25 @@ void setup() {
   switchDRS(1);   //Flip DRS On
 
   // Connect to Wi-Fi
-  connectToWiFi();
+  //connectToWiFi();
 
   // Obtain path
-  route = getRoute();
-  adjustRoute();
+  //route = getRoute();
+  route = "0,1,2";
+  adjustPath();
 
-  Serial.println(updatedPathLength);
   
-  finalPathLength = calculateFullPath();
+  shortestPath(0,1);
 
-  dijkstraPath(0, 1, finalPath);
+  Serial.print("Shortest path: ");
+  for (int i = updatedPathLength - 1; i >= 0; i--) {
+    Serial.print(updatedPath[i]);
+    if (i > 0) Serial.print(" -> ");
+  }
+  Serial.println();
 
-  Serial.print("Djikstra Path: ");
-  for (int i = 0; i < finalPathLength; i++) {
-    Serial.print(finalPath[i]);
-    if (i < finalPathLength - 1) Serial.print(", ");
+  while (1){
+    delay(1000);
   }
 
   //delay before starting 
@@ -223,26 +210,26 @@ void sendPosition(int position) {
   client.println(postBody); // Send body
 
   // Read response
-  String response = "";
-  while (client.connected() || client.available()) {
-    if (client.available()) {
-      response = client.readString();
-      break;
-    }
-  }
+  //String response = "";
+  //while (client.connected() || client.available()) {
+  //  if (client.available()) {
+  //    response = client.readString();
+  //    break;
+  //  }
+  //}
 
   client.stop(); // Close connection
 
   // Debug print the full response
-  Serial.println("Full Server Response:");
-  Serial.println(response);
+  //Serial.println("Full Server Response:");
+  //Serial.println(response);
 
-  // Extract the HTTP status code
-  int statusCode = getStatusCode(response);
-  if (statusCode != 200) {
-      Serial.println("Error: Failed to retrieve next position. HTTP Status: " + String(statusCode));
-      return;
-  }
+  //// Extract the HTTP status code
+  //int statusCode = getStatusCode(response);
+  //if (statusCode != 200) {
+  //    Serial.println("Error: Failed to retrieve next position. HTTP Status: " + String(statusCode));
+  //    return;
+  //}
 }
 
 // Function to read Route
@@ -460,184 +447,35 @@ void obstacleDetection(){
 //-----------------Path Following Logic------------------------
 //------------------------------------------------------------
 
-void choosePath(int direction){
-  switch (direction) {
-    case 0:                       // reverse
-      reverse();                         // 180-degree turn
-      break;
-    case 1:                                   // Straight
-      driveMotor(baseSpeed, baseSpeed);
-      delay(forwardDelay);                             // Adjust the delay based on distance
-      break;
-    case 2:                                   // Left
-      left();
-      break;
-    case 3:
-      right();
-      if (forwardDirection) {
-        forwardDirection = false;
-      }
-      break;
-    default:
-      Serial.println("Error: Direction Invalid");
-      driveMotor(0, 0);
-      break;
-  }
-}
-
-//-------------------------------------------------------------
-//---------------------------------LED-------------------------
-//-------------------------------------------------------------
-
-// Function to set RGB color
-void setColour(int r, int g, int b) {
-    analogWrite(redPin, r);
-    analogWrite(greenPin, g);
-    analogWrite(bluePin, b);
-}
-
-// Function to generate rainbow colors
-void rainbowFade(int wait) {
-    unsigned long currentMillis = millis();
+// Get next direction
+int getDirection(int currentNode, int lastNode, int nextNode) {
+  // At the starting position, assume going straight.
+  if (lastNode == -1)
+    return 1;
     
-    if (currentMillis - previousMillis >= wait) {
-        previousMillis = currentMillis;
-
-        int r = sin((colorIndex * 3.14159 / 128) + 0) * 127 + 128;
-        int g = sin((colorIndex * 3.14159 / 128) + 2.09439) * 127 + 128;
-        int b = sin((colorIndex * 3.14159 / 128) + 4.18878) * 127 + 128;
-
-        setColour(r, g, b);
-
-        colorIndex++;
-        if (colorIndex >= 256) colorIndex = 0; // Reset after full cycle
-    }
-}
-
-//-------------------------------------------------------------
-//---------------------------------DRS-------------------------
-//-------------------------------------------------------------
-
-void switchDRS(bool DRSPosition){
-  if (DRSPosition) {
-    digitalWrite(DRSPin, HIGH);
-  } else {
-    digitalWrite(DRSPin, LOW);
-  }
-}
-
-//-------------------------------------------------------------
-//----------------------Route-Adjusting------------------------
-//-------------------------------------------------------------
-void adjustRoute() {
-  // Ensure there is a valid route to process.
-  if (route.length() == 0) {
-    Serial.println("No valid route to process.");
-    return;
+  // Count valid neighbors for the current node.
+  int validCount = 0;
+  for (int j = 0; j < nodeCount; j++) {
+    if (j == currentNode)
+      continue;
+    if (weightMatrix[currentNode][j] != INF)
+      validCount++;
   }
   
-  // Step 1: Count the number of segments in the route and determine the required size
-  updatedPathLength = 1;
-  for (int i = 0; i < route.length(); i++) {
-    if (route[i] == ',') {
-      updatedPathLength++;
-    }
-  }
-
-  // Step 2: Dynamically allocate memory for the updatedPath array
-  int* updatedPath = new int[updatedPathLength];
-
-  // Step 3: Parse the route string into the updatedPath array
-  int index = 0;
-  char* routeCopy = strdup(route.c_str());
-  char* token = strtok(routeCopy, ",");
-  while (token != nullptr) {
-    updatedPath[index++] = atoi(token);
-    token = strtok(nullptr, ",");
-  }
-  free(routeCopy);
-  
-  // Step 4: Print the parsed path for debugging
-  Serial.println("Route parsed successfully into updatedPath array.");
-  Serial.print("Updated Path: ");
-  for (int i = 0; i < updatedPathLength; i++) {
-    Serial.print(updatedPath[i]);
-    if (i < updatedPathLength - 1) {
-      Serial.print(" -> ");
-    }
-  }
-  Serial.println();
-  
-  // Step 5: Clean up dynamically allocated memory
-  delete[] updatedPath;
-}
-
-
-// ----- Dijkstra's Algorithm -----
-// Computes the shortest path from start to goal using the weighted matrix.
-// The resulting path is stored in the provided "path" array.
-// Returns the number of nodes in the path (or 0 if no path exists).
-int dijkstraPath(int start, int goal, int path[]) {
-  int dist[nodeCount];
-  bool visited[nodeCount];
-  int prev[nodeCount];
-
-  // Initialize arrays.
-  for (int i = 0; i < nodeCount; i++) {
-    dist[i] = INF;
-    visited[i] = false;
-    prev[i] = -1;
-  }
-  dist[start] = 0;
-
-  // Main loop: select the unvisited node with the smallest distance.
-  for (int i = 0; i < nodeCount; i++) {
-    int u = -1;
-    int minDist = INF;
-    for (int j = 0; j < nodeCount; j++) {
-      if (!visited[j] && dist[j] < minDist) {
-        minDist = dist[j];
-        u = j;
-      }
-    }
-    if (u == -1)
-      break;
-    visited[u] = true;
-    // Relax distances for neighbors of u.
-    for (int v = 0; v < nodeCount; v++) {
-      if (weightMatrix[u][v] != INF && !visited[v]) {
-        if (dist[u] + weightMatrix[u][v] < dist[v]) {
-          dist[v] = dist[u] + weightMatrix[u][v];
-          prev[v] = u;
-        }
-      }
-    }
-  }
-
-  // If the goal is unreachable, return 0.
-  if (dist[goal] == INF)
+  // If more than two connections exist, treat it as a junction.
+  if (validCount > 2)
+    return getJunctionDirection(currentNode, lastNode, nextNode);
+    
+  // For nodes with only two connections, if the next node equals the last node,
+  // that indicates a 180° turn.
+  if (nextNode == lastNode)
     return 0;
-
-  // Reconstruct the path by backtracking from goal to start.
-  int tempPath[nodeCount];
-  int count = 0;
-  int v = goal;
-  while (v != -1) {
-    tempPath[count++] = v;
-    v = prev[v];
-  }
-  // Reverse the temporary path into the output array.
-  for (int i = 0; i < count; i++) {
-    path[i] = tempPath[count - i - 1];
-  }
-  return count;
+    
+  // Otherwise, go straight.
+  return 1;
 }
 
-// ----- Junction Turn Mapping -----
-// For junction nodes (with three connections: nodes 6 and 7), determine the turn
-// based on the last node (the one you came from) and the next node (the one you're going to).
-// Returns:
-//   0 = 180° (back), 1 = straight, 2 = left, 3 = right.
+// Handle directions for junctions
 int getJunctionDirection(int currentNode, int lastNode, int nextNode) {
   // Node 6 mapping: connected to nodes 0, 1, and 2.
   if (currentNode == 6) {
@@ -679,41 +517,179 @@ int getJunctionDirection(int currentNode, int lastNode, int nextNode) {
   return -1; // error: mapping not found
 }
 
-// ----- Get Turning Direction -----
-// Given the current node, the node you just came from, and the next node,
-// this function returns the turning command:
-//   0 = 180° turn, 1 = straight, 2 = left, 3 = right.
-int getDirection(int currentNode, int lastNode, int nextNode) {
-  // At the starting position, assume going straight.
-  if (lastNode == -1)
-    return 1;
-    
-  // Count valid neighbors for the current node.
-  int validCount = 0;
-  for (int j = 0; j < nodeCount; j++) {
-    if (j == currentNode)
-      continue;
-    if (weightMatrix[currentNode][j] != INF)
-      validCount++;
+
+void choosePath(int direction){
+  switch (direction) {
+    case 0:                       // reverse
+      reverse();                         // 180-degree turn
+      break;
+    case 1:                                   // Straight
+      driveMotor(baseSpeed, baseSpeed);
+      delay(forwardDelay);                             // Adjust the delay based on distance
+      break;
+    case 2:                                   // Left
+      left();
+      break;
+    case 3:
+      right();
+      if (forwardDirection) {
+        forwardDirection = false;
+      }
+      break;
+    default:
+      Serial.println("Error: Direction Invalid");
+      driveMotor(0, 0);
+      break;
   }
-  
-  // If more than two connections exist, treat it as a junction.
-  if (validCount > 2)
-    return getJunctionDirection(currentNode, lastNode, nextNode);
-    
-  // For nodes with only two connections, if the next node equals the last node,
-  // that indicates a 180° turn.
-  if (nextNode == lastNode)
-    return 0;
-    
-  // Otherwise, go straight.
-  return 1;
 }
 
-// ----- Process Path -----
-// This function uses the global variable pathIndex to process the next segment
-// in the refined path. When detectNode() returns true, it processes the turn
-// from the current node to the next node.
+//-------------------------------------------------------------
+//----------------String-To-Array-Conversion-------------------
+//-------------------------------------------------------------
+
+// convert string route to global array
+void adjustPath() {
+  // Ensure there is a valid route to process.
+  if (route.length() == 0) {
+    Serial.println("No valid route to process.");
+    return;
+  }
+  
+  // Step 1: Count the number of segments in the route and determine the required size
+  pathLength = 1;
+  for (int i = 0; i < route.length(); i++) {
+    if (route[i] == ',') {
+      pathLength++;
+    }
+  }
+
+  // Step 2: Dynamically allocate memory for the array
+  int* path = new int[pathLength];
+
+  // Step 3: Parse the route string into the array
+  int index = 0;
+  char* routeCopy = strdup(route.c_str());
+  char* token = strtok(routeCopy, ",");
+  while (token != nullptr) {
+    path[index++] = atoi(token);
+    token = strtok(nullptr, ",");
+  }
+  free(routeCopy);
+  
+  // Step 4: Print the parsed path for debugging
+  Serial.println("Route parsed successfully into an array.");
+  Serial.print("Path: ");
+  for (int i = 0; i < pathLength; i++) {
+    Serial.print(path[i]);
+    if (i < pathLength - 1) {
+      Serial.print(" -> ");
+    }
+  }
+  Serial.println();
+  
+  // Step 5: Clean up dynamically allocated memory
+  delete[] path;
+}
+
+//-------------------------------------------------------------
+//--------------------Shortest Path ---------------------------
+//------------------------------------------------------------
+
+// Find min distance between nodes
+int findMinDistance(int distances[], bool visited[]) {
+  int minDistance = INF;
+  int minIndex = -1;
+
+  for (int i = 0; i < nodeCount; i++) {
+    if (!visited[i] && distances[i] < minDistance) {
+      minDistance = distances[i];
+      minIndex = i;
+    }
+  }
+  return minIndex;
+}
+
+//Find Dijkstra shortest path and update path array 
+void shortestPath(int startNode, int endNode) {
+  int distances[nodeCount];
+  bool visited[nodeCount];
+  int previous[nodeCount];
+
+  for (int i = 0; i < nodeCount; i++) {
+    distances[i] = INF;
+    visited[i] = false;
+    previous[i] = -1;
+  }
+  distances[startNode] = 0;
+
+  for (int i = 0; i < nodeCount - 1; i++) {
+    int currentNode = findMinDistance(distances, visited);
+    if (currentNode == -1) break;
+    visited[currentNode] = true;
+
+    for (int neighbor = 0; neighbor < nodeCount; neighbor++) {
+      if (weightMatrix[currentNode][neighbor] != INF && !visited[neighbor]) {
+        int newDistance = distances[currentNode] + weightMatrix[currentNode][neighbor];
+        if (newDistance < distances[neighbor]) {
+          distances[neighbor] = newDistance;
+          previous[neighbor] = currentNode;
+        }
+      }
+    }
+  }
+
+  updatedPathLength = 0;
+  for (int at = endNode; at != -1; at = previous[at]) {
+    updatedPath[updatedPathLength++] = at;
+  }
+  if (distances[endNode] == INF) {
+    Serial.println("No path found.");
+  }
+}
+
+
+//-------------------------------------------------------------
+//---------------------------LED-------------------------------
+//-------------------------------------------------------------
+
+// Function to set RGB color
+void setColour(int r, int g, int b) {
+    analogWrite(redPin, r);
+    analogWrite(greenPin, g);
+    analogWrite(bluePin, b);
+}
+
+// Function to generate rainbow colors
+void rainbowFade(int wait) {
+    unsigned long currentMillis = millis();
+    
+    if (currentMillis - previousMillis >= wait) {
+        previousMillis = currentMillis;
+
+        int r = sin((colorIndex * 3.14159 / 128) + 0) * 127 + 128;
+        int g = sin((colorIndex * 3.14159 / 128) + 2.09439) * 127 + 128;
+        int b = sin((colorIndex * 3.14159 / 128) + 4.18878) * 127 + 128;
+
+        setColour(r, g, b);
+
+        colorIndex++;
+        if (colorIndex >= 256) colorIndex = 0; // Reset after full cycle
+    }
+}
+
+//-------------------------------------------------------------
+//---------------------------DRS-------------------------------
+//-------------------------------------------------------------
+
+void switchDRS(bool DRSPosition){
+  if (DRSPosition) {
+    digitalWrite(DRSPin, HIGH);
+  } else {
+    digitalWrite(DRSPin, LOW);
+  }
+}
+
+
 void processPath() {
   // Check if there is a next segment.
   if (!detectNode()){
@@ -747,32 +723,4 @@ void processPath() {
       delay(2000);
     }
   }
-}
-
-int calculateFullPath() {
-  int totalPathLength = 0;
-
-  // Loop through each consecutive pair in updatedPath[]
-  for (int i = 0; i < updatedPathLength - 1; i++) {
-    int subPath[nodeCount]; // Temporary array to store the sub-path.
-    int subPathLength = dijkstraPath(updatedPath[i], updatedPath[i+1], subPath);
-
-    // If no path is found between updatedPath[i] and updatedPath[i+1], handle the error.
-    if (subPathLength == 0) {
-      // Optionally, print an error message.
-      Serial.print("No path found between node ");
-      Serial.print(updatedPath[i]);
-      Serial.print(" and node ");
-      Serial.println(updatedPath[i+1]);
-      return 0; // Or you might choose to handle this error differently.
-    }
-
-    // For the first segment, copy the entire subPath.
-    // For subsequent segments, skip the first node to avoid duplication.
-    int startIndex = (i == 0) ? 0 : 1;
-    for (int j = startIndex; j < subPathLength; j++) {
-      finalPath[totalPathLength++] = subPath[j];
-    }
-  }
-  return totalPathLength;
 }
