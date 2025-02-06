@@ -522,18 +522,18 @@ int getJunctionDirection(int currentNode, int lastNode, int nextNode) {
 
 void choosePath(int direction){
   switch (direction) {
-    case 0:                       // reverse
+    case 0:                              // reverse
       reverse();                         // 180-degree turn
       break;
-    case 1:                                   // Straight
+    case 1:                              // Straight
       driveMotor(baseSpeed, baseSpeed);
-      delay(forwardDelay);                             // Adjust the delay based on distance
+      delay(forwardDelay);                             
       break;
-    case 2:                                   // Left
+    case 2:                              // Left
       left();
       break;
     case 3:
-      right();
+      right();                          // Right
       if (forwardDirection) {
         forwardDirection = false;
       }
