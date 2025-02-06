@@ -41,8 +41,8 @@ const int turningTime = 350;    // Time to make a 90 degree turn
 
 // Wi-Fi credentials
 const char *ssid = "iot";                // Replace with your Wi-Fi SSID
-const char *password = "manganese30sulphating"; // Replace with your Wi-Fi password
-
+//const char *password = "manganese30sulphating"; // Replace with your Wi-Fi password
+const char *password = "overtechnicality7petrophilous";
 
 
 // IR sensor pins (only outermost sensors are used)
@@ -119,10 +119,10 @@ bool forwardDirection = true;   //Start with forward direction
 
 //Route re-writing
 String route = "";
-int path[MAX_PATH_SIZE];  // Final path with virtual nodes
+int finalPath[MAX_PATH_SIZE];  // Final path with virtual nodes
 int pathSize = 0;  // Size of the updated path
 int pathIndex = 0;
-int pathLength = 0;
+int finalPathLength = 0;
 
 int updatedPath[MAX_PATH_SIZE];
 int updatedPathLength = 0;
@@ -162,6 +162,16 @@ void setup() {
   adjustRoute();
 
   Serial.println(updatedPathLength);
+  
+  finalPathLength = calculateFullPath();
+
+  dijkstraPath(0, 1, finalPath);
+
+  Serial.print("Djikstra Path: ");
+  for (int i = 0; i < finalPathLength; i++) {
+    Serial.print(finalPath[i]);
+    if (i < finalPathLength - 1) Serial.print(", ");
+  }
 
   //delay before starting 
   delay(1000);
@@ -170,9 +180,9 @@ void setup() {
 }
 
 void loop() {
-  readLineSensors();
-  processPath();
-  followLine();
+  //readLineSensors();
+  //processPath();
+  //followLine();
   //rainbowFade(10);
 }
 
@@ -737,4 +747,32 @@ void processPath() {
       delay(2000);
     }
   }
+}
+
+int calculateFullPath() {
+  int totalPathLength = 0;
+
+  // Loop through each consecutive pair in updatedPath[]
+  for (int i = 0; i < updatedPathLength - 1; i++) {
+    int subPath[nodeCount]; // Temporary array to store the sub-path.
+    int subPathLength = dijkstraPath(updatedPath[i], updatedPath[i+1], subPath);
+
+    // If no path is found between updatedPath[i] and updatedPath[i+1], handle the error.
+    if (subPathLength == 0) {
+      // Optionally, print an error message.
+      Serial.print("No path found between node ");
+      Serial.print(updatedPath[i]);
+      Serial.print(" and node ");
+      Serial.println(updatedPath[i+1]);
+      return 0; // Or you might choose to handle this error differently.
+    }
+
+    // For the first segment, copy the entire subPath.
+    // For subsequent segments, skip the first node to avoid duplication.
+    int startIndex = (i == 0) ? 0 : 1;
+    for (int j = startIndex; j < subPathLength; j++) {
+      finalPath[totalPathLength++] = subPath[j];
+    }
+  }
+  return totalPathLength;
 }
