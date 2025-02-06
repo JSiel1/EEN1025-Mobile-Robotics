@@ -13,6 +13,7 @@
 // Buffer Size
 #define BUFSIZE 512
 #define MAX_PATH_SIZE 20
+#define INF 9999
 
 // Motor pins
 #define motor1PWM 37  // Left motor enable (PWM)
@@ -42,6 +43,8 @@ const int turningTime = 350;    // Time to make a 90 degree turn
 const char *ssid = "iot";                // Replace with your Wi-Fi SSID
 const char *password = "manganese30sulphating"; // Replace with your Wi-Fi password
 
+
+
 // IR sensor pins (only outermost sensors are used)
 const int IR_PINS[] = {4, 7, 5, 15}; // 2 sensors on the left, 2 on the right
 const int sensorCount = 4;
@@ -70,8 +73,24 @@ float Ivalue = 0;
 float Dvalue = 0;
 int previousError = 0;
 
-// Adjacency Matrix: -1 means no path
+
 const int nodeCount = 8; // Number of nodes
+
+// ----- Weighted Adjacency Matrix -----
+// Rows/columns represent nodes 0..7. A cell value (e.g. 1) indicates the cost.
+// INF indicates no direct connection.
+int weightMatrix[nodeCount][nodeCount] = {
+  //    0     1     2     3     4     5     6     7
+  {    0, INF, INF, INF,    1, INF,    1, INF }, // Node 0: connects to 4 and 6
+  { INF,    0, INF, INF, INF, INF,    1,    1 }, // Node 1: connects to 6 and 7
+  { INF, INF,    0,    1, INF, INF,    1, INF }, // Node 2: connects to 3 and 6
+  { INF, INF,    1,    0, INF, INF, INF,    1 }, // Node 3: connects to 2 and 7
+  {    1, INF, INF, INF,    0, INF, INF,    1 }, // Node 4: connects to 0 and 7
+  { INF, INF, INF, INF, INF,    0, INF, INF },    // Node 5: isolated
+  {    1,    1,    1, INF, INF, INF,    0, INF }, // Node 6: junction (nodes 0,1,2)
+  { INF,    1, INF,    1,    1, INF, INF,    0 }  // Node 7: junction (nodes 1,3,4)
+};
+
 const int adjacencyList[nodeCount][3] = {
   { 4, 6, -1 },     // Node 0: {Back=-4, Straight=6, Left=NONE}
   { 6, 7, -1 },     // Node 1: {Back=6, Straight=7, Left=NONE}
@@ -100,10 +119,14 @@ bool forwardDirection = true;   //Start with forward direction
 
 //Route re-writing
 String route = "";
-int updatedPath[MAX_PATH_SIZE];  // Final path with virtual nodes
-int updatedPathSize = 0;  // Size of the updated path
+int path[MAX_PATH_SIZE];  // Final path with virtual nodes
+int pathSize = 0;  // Size of the updated path
 int pathIndex = 0;
 int pathLength = 0;
+
+int updatedPath[MAX_PATH_SIZE];
+int updatedPathLength = 0;
+
 
 // Wifi class
 WiFiClient client;
@@ -137,15 +160,8 @@ void setup() {
   // Obtain path
   route = getRoute();
   adjustRoute();
-  //pathLength = sizeof(updatedPath) / sizeof(updatedPath[0]);
 
-  Serial.println(pathLength);
-
-  Serial.print("Updated Path: ");
-  for (int i = 0; i < updatedPathSize; i++) {
-    Serial.print(updatedPath[i]);
-    if (i < updatedPathSize - 1) Serial.print(", ");
-  }
+  Serial.println(updatedPathLength);
 
   //delay before starting 
   delay(1000);
@@ -155,7 +171,7 @@ void setup() {
 
 void loop() {
   readLineSensors();
-  followPath();
+  processPath();
   followLine();
   //rainbowFade(10);
 }
@@ -433,138 +449,6 @@ void obstacleDetection(){
 //-------------------------------------------------------------
 //-----------------Path Following Logic------------------------
 //------------------------------------------------------------
-void followPath(){
-  if (!detectNode()) {
-    return;
-  }
-
-  // Stop robot at line and move slightly over
-  driveMotor(0, 0); // Stop the robot
-  driveMotor(80, 80); // Drive forward at low speed
-  //delay(forwardDelay); // Move slightly forward to cross the line
-  driveMotor(0, 0); // Stop again
-  //delay(stopDelay); // Wait for 1 second before resuming
-
-  if (currentPosition != 6 && currentPosition != 7){
-    sendPosition(currentPosition);
-  }
-
-  Serial.println(pathIndex);
-  
-  //Check if mobot is at the end of path
-  if (pathIndex >= pathLength - 1) {
-    Serial.println("Path complete");
-    driveMotor(0, 0);
-    while (true) {
-      setColour(0,255,0);
-      delay(300);
-      setColour(0,0,0);
-      delay(300);
-    }
-  }
-
-  // Get next position and direction
-  int nextPosition = updatedPath[pathIndex + 1];
-  int direction = getDynamicDirection(currentPosition, nextPosition, lastPosition);
-
-  // Check if Direction is valid
-  if (direction != -1) {
-    choosePath(direction);
-    lastPosition = currentPosition;
-    currentPosition = nextPosition;
-    pathIndex++;
-  } else {
-    Serial.println("Error: No valid path found");
-  }
-}
-
-int getDynamicDirection(int currentNode, int targetPosition, int lastPosition) {
-  // Handle dynamic mapping for Node 6
-  if (currentNode == 6) {
-    if (lastPosition == 1) {
-      // Entering Node 6 from Node 1
-      if (targetPosition == 2) return 2; // Left -> Node 2
-      if (targetPosition == 0) return 3; // Right -> Node 0
-      if (targetPosition == 1) return 0; // Back -> Node 1
-    } else if (lastPosition == 2) {
-      // Entering Node 6 from Node 2
-      if (targetPosition == 0) return 1; // Straight -> Node 0
-      if (targetPosition == 1) {
-        forwardDirection = !forwardDirection;
-        return 3; // Right -> Node 1
-      }
-      if (targetPosition == 2) return 0; // Back -> Node 2
-    } else if (lastPosition == 0) {
-      // Entering Node 6 from Node 0
-      if (targetPosition == 1) return 2; // Left -> Node 1
-      if (targetPosition == 2) return 1; // straight -> Node 2
-      if (targetPosition == 0) return 0; // Back -> Node 0
-    }
-  }
-  
-  // Handle dynamic mapping for Node 7
-  if (currentNode == 7) {
-    if (lastPosition == 1) {
-      // Entering Node 7 from Node 1
-      if (targetPosition == 5) return 1; // Straight -> Node 5
-      if (targetPosition == 4) return 2; // Left -> Node 4
-      if (targetPosition == 1) return 0; // Back -> Node 1
-      if (targetPosition == 3) return 3; // right -> Node 3
-    } else if (lastPosition == 5) {
-      // Entering Node 7 from Node 5
-      if (targetPosition == 4) return 3; // Right -> Node 4
-      if (targetPosition == 1) return 2; // Left -> Node 1
-      if (targetPosition == 5) return 0; // Back -> Node 5
-    } else if (lastPosition == 4) {
-      // Entering Node 7 from Node 4
-      if (targetPosition == 1) return 3; // Right -> Node 1
-      if (targetPosition == 5) return 2; // Left -> Node 5
-      if (targetPosition == 4) return 0; // Back -> Node 4
-    } else if (lastPosition == 3 && targetPosition == 1) {
-      forwardDirection = !forwardDirection; // Flip direction
-      return 2;
-    }
-  }
-
-  // Default case for non-junction nodes or when no special handling is needed
-  for (int direction = 0; direction < 3; direction++) {
-    if (adjacencyList[currentNode][direction] == targetPosition) {
-      if (targetPosition == lastPosition) return 0;
-      return forwardDirection ? direction : (direction == 0 ? 1 : (direction == 1 ? 0 : direction));
-    }
-  }
-
-  Serial.println("Error: Direction Fetch error");
-  return -1; // Invalid path
-}
-
-bool requiresVirtualNode(int current, int next) {
-  // Check if the next node is not directly connected to the current node
-  for (int i = 0; i < 3; i++) {
-    if (adjacencyList[current][i] == next) {
-      return false;  // Direct connection exists, no virtual node needed
-    }
-  }
-  return true;  // No direct path, so a virtual node is needed
-}
-
-int getVirtualNode(int current, int next) {
-  // Check for a virtual node that connects both current and next position
-  for (int i = 6; i <= 7; i++) {  // Virtual nodes are 6 and 7
-    bool connectsCurrent = false;
-    bool connectsNext = false;
-
-    for (int j = 0; j < 3; j++) {
-      if (adjacencyList[i][j] == current) connectsCurrent = true;
-      if (adjacencyList[i][j] == next) connectsNext = true;
-    }
-
-    if (connectsCurrent && connectsNext) {
-      return i;  // Found a valid virtual node transition
-    }
-  }
-  return next;  // No virtual node needed, return the original next position
-}
 
 void choosePath(int direction){
   switch (direction) {
@@ -636,61 +520,221 @@ void switchDRS(bool DRSPosition){
 //----------------------Route-Adjusting------------------------
 //-------------------------------------------------------------
 void adjustRoute() {
-  // Step 1: Determine number of nodes in `route`
-  int pathSize = 1;  // At least one node exists
+  // Ensure there is a valid route to process.
+  if (route.length() == 0) {
+    Serial.println("No valid route to process.");
+    return;
+  }
+  
+  // Step 1: Count the number of segments in the route and determine the required size
+  updatedPathLength = 1;
   for (int i = 0; i < route.length(); i++) {
     if (route[i] == ',') {
-      pathSize++;
+      updatedPathLength++;
     }
   }
 
-  // Step 2: Parse the route into `path` array
-  int path[pathSize];  // Create an array of exactly the needed size
-  int tempUpdatedPath[pathSize * 2];  // Temporary array (allow room for virtual nodes)
-  int pathIndex = 0;
+  // Step 2: Dynamically allocate memory for the updatedPath array
+  int* updatedPath = new int[updatedPathLength];
 
-  char buffer[route.length() + 1];  // Copy route into char buffer for strtok
-  route.toCharArray(buffer, sizeof(buffer));
-  char* token = strtok(buffer, ",");
-
-  while (token != NULL && pathIndex < pathSize) {
-    path[pathIndex++] = atoi(token);
-    token = strtok(NULL, ",");
+  // Step 3: Parse the route string into the updatedPath array
+  int index = 0;
+  char* routeCopy = strdup(route.c_str());
+  char* token = strtok(routeCopy, ",");
+  while (token != nullptr) {
+    updatedPath[index++] = atoi(token);
+    token = strtok(nullptr, ",");
   }
-
-  // Step 3: Compute full path with virtual nodes
-  updatedPathSize = 0;
-  for (int i = 0; i < pathSize - 1; i++) {
-    int current = path[i];
-    int next = path[i + 1];
-
-    // Add current node to final path
-    tempUpdatedPath[updatedPathSize++] = current;
-
-    // Check if a virtual node is needed
-    if (requiresVirtualNode(current, next)) {
-      int virtualNode = getVirtualNode(current, next);
-      tempUpdatedPath[updatedPathSize++] = virtualNode;
-    }
-
-    // Handle dynamic cases for positions 6 & 7
-    if (current == 6 || current == 7) {
-      int lastPosition = (i > 0) ? path[i - 1] : current;
-      int dynamicNext = getDynamicDirection(current, next, lastPosition);
-      tempUpdatedPath[updatedPathSize++] = dynamicNext;
+  free(routeCopy);
+  
+  // Step 4: Print the parsed path for debugging
+  Serial.println("Route parsed successfully into updatedPath array.");
+  Serial.print("Updated Path: ");
+  for (int i = 0; i < updatedPathLength; i++) {
+    Serial.print(updatedPath[i]);
+    if (i < updatedPathLength - 1) {
+      Serial.print(" -> ");
     }
   }
-
-  // Add the last node
-  tempUpdatedPath[updatedPathSize++] = path[pathSize - 1];
-
-  // Step 4: Copy only the necessary part of tempUpdatedPath into updatedPath
-  for (int i = 0; i < updatedPathSize && i < MAX_PATH_SIZE; i++) {
-    updatedPath[i] = tempUpdatedPath[i];
-  }
-
-  // Update pathLength to reflect the actual size
-  pathLength = updatedPathSize;
+  Serial.println();
+  
+  // Step 5: Clean up dynamically allocated memory
+  delete[] updatedPath;
 }
 
 
+// ----- Dijkstra's Algorithm -----
+// Computes the shortest path from start to goal using the weighted matrix.
+// The resulting path is stored in the provided "path" array.
+// Returns the number of nodes in the path (or 0 if no path exists).
+int dijkstraPath(int start, int goal, int path[]) {
+  int dist[nodeCount];
+  bool visited[nodeCount];
+  int prev[nodeCount];
+
+  // Initialize arrays.
+  for (int i = 0; i < nodeCount; i++) {
+    dist[i] = INF;
+    visited[i] = false;
+    prev[i] = -1;
+  }
+  dist[start] = 0;
+
+  // Main loop: select the unvisited node with the smallest distance.
+  for (int i = 0; i < nodeCount; i++) {
+    int u = -1;
+    int minDist = INF;
+    for (int j = 0; j < nodeCount; j++) {
+      if (!visited[j] && dist[j] < minDist) {
+        minDist = dist[j];
+        u = j;
+      }
+    }
+    if (u == -1)
+      break;
+    visited[u] = true;
+    // Relax distances for neighbors of u.
+    for (int v = 0; v < nodeCount; v++) {
+      if (weightMatrix[u][v] != INF && !visited[v]) {
+        if (dist[u] + weightMatrix[u][v] < dist[v]) {
+          dist[v] = dist[u] + weightMatrix[u][v];
+          prev[v] = u;
+        }
+      }
+    }
+  }
+
+  // If the goal is unreachable, return 0.
+  if (dist[goal] == INF)
+    return 0;
+
+  // Reconstruct the path by backtracking from goal to start.
+  int tempPath[nodeCount];
+  int count = 0;
+  int v = goal;
+  while (v != -1) {
+    tempPath[count++] = v;
+    v = prev[v];
+  }
+  // Reverse the temporary path into the output array.
+  for (int i = 0; i < count; i++) {
+    path[i] = tempPath[count - i - 1];
+  }
+  return count;
+}
+
+// ----- Junction Turn Mapping -----
+// For junction nodes (with three connections: nodes 6 and 7), determine the turn
+// based on the last node (the one you came from) and the next node (the one you're going to).
+// Returns:
+//   0 = 180° (back), 1 = straight, 2 = left, 3 = right.
+int getJunctionDirection(int currentNode, int lastNode, int nextNode) {
+  // Node 6 mapping: connected to nodes 0, 1, and 2.
+  if (currentNode == 6) {
+    if (lastNode == 1) {
+      if (nextNode == 2) return 2; // left -> node 2
+      if (nextNode == 0) return 3; // right -> node 0
+      if (nextNode == 1) return 0; // back (180° turn)
+    } else if (lastNode == 2) {
+      if (nextNode == 0) return 1; // straight -> node 0
+      if (nextNode == 1) {
+        forwardDirection = !forwardDirection;
+        return 3; // right (with flip)
+      }
+      if (nextNode == 2) return 0; // back
+    } else if (lastNode == 0) {
+      if (nextNode == 1) return 2; // left -> node 1
+      if (nextNode == 2) return 1; // straight -> node 2
+      if (nextNode == 0) return 0; // back
+    }
+  }
+  
+  // Node 7 mapping: connected to nodes 1, 3, and 4.
+  if (currentNode == 7) {
+    if (lastNode == 1) {
+      if (nextNode == 4) return 2; // left -> node 4
+      if (nextNode == 3) return 3; // right -> node 3
+      if (nextNode == 1) return 0; // back
+    } else if (lastNode == 4) {
+      if (nextNode == 1) return 3; // right -> node 1
+      if (nextNode == 3) return 2; // left -> node 3
+      if (nextNode == 4) return 0; // back
+    } else if (lastNode == 3) {
+      if (nextNode == 1) {
+        forwardDirection = !forwardDirection;
+        return 2; // left (with flip)
+      }
+    }
+  }
+  return -1; // error: mapping not found
+}
+
+// ----- Get Turning Direction -----
+// Given the current node, the node you just came from, and the next node,
+// this function returns the turning command:
+//   0 = 180° turn, 1 = straight, 2 = left, 3 = right.
+int getDirection(int currentNode, int lastNode, int nextNode) {
+  // At the starting position, assume going straight.
+  if (lastNode == -1)
+    return 1;
+    
+  // Count valid neighbors for the current node.
+  int validCount = 0;
+  for (int j = 0; j < nodeCount; j++) {
+    if (j == currentNode)
+      continue;
+    if (weightMatrix[currentNode][j] != INF)
+      validCount++;
+  }
+  
+  // If more than two connections exist, treat it as a junction.
+  if (validCount > 2)
+    return getJunctionDirection(currentNode, lastNode, nextNode);
+    
+  // For nodes with only two connections, if the next node equals the last node,
+  // that indicates a 180° turn.
+  if (nextNode == lastNode)
+    return 0;
+    
+  // Otherwise, go straight.
+  return 1;
+}
+
+// ----- Process Path -----
+// This function uses the global variable pathIndex to process the next segment
+// in the refined path. When detectNode() returns true, it processes the turn
+// from the current node to the next node.
+void processPath() {
+  // Check if there is a next segment.
+  if (!detectNode()){
+    return;
+  }
+
+  if (pathIndex < updatedPathLength - 1) {
+    int current = updatedPath[pathIndex];
+    int next = updatedPath[pathIndex + 1];
+    int lastNode = (pathIndex == 0) ? -1 : updatedPath[pathIndex - 1];
+    
+    int turnCode = getDirection(current, lastNode, next);
+    Serial.print("At node ");
+    Serial.print(current);
+    Serial.print(" -> next node ");
+    Serial.print(next);
+    Serial.print(" : Turn code = ");
+    Serial.println(turnCode);
+    
+    // Instead of calling executeTurn(), we directly perform the turn here.
+    choosePath(turnCode);
+    
+    // Increment the global path index to move to the next segment.
+    pathIndex++;
+  } else {
+    // If we have reached the end of the path, indicate completion.
+    Serial.println("Finished path. Waiting...");
+    // Enter an infinite loop to halt further processing.
+    while (true) {
+      Serial.println("Finished");
+      delay(2000);
+    }
+  }
+}
