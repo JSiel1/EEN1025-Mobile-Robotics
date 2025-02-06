@@ -158,10 +158,6 @@ void setup() {
   //}
   //Serial.println();
 
-  while (1){
-    delay(1000);
-  }
-
   //delay before starting 
   delay(1000);
 
@@ -170,7 +166,7 @@ void setup() {
 
 void loop() {
   //readLineSensors();
-  //processPath();
+  processPathDebug();
   //followLine();
   //rainbowFade(10);
 }
@@ -733,12 +729,10 @@ void switchDRS(bool DRSPosition){
 }
 
 
-void processPath() {
-  // Check if there is a next segment.
-  if (!detectNode()){
-    return;
-  }
-
+// Debug version: Skip detectNode() for testing
+void processPathDebug() {
+  // This version skips detectNode() to test the rest of the path logic.
+  
   if (pathIndex < updatedPathLength - 1) {
     int current = updatedPath[pathIndex];
     int next = updatedPath[pathIndex + 1];
@@ -752,7 +746,7 @@ void processPath() {
     Serial.print(" : Turn code = ");
     Serial.println(turnCode);
     
-    // Instead of calling executeTurn(), we directly perform the turn here.
+    // Perform Action based on direction
     choosePath(turnCode);
     
     // Increment the global path index to move to the next segment.
@@ -767,3 +761,40 @@ void processPath() {
     }
   }
 }
+
+// Original processPath function with correct path handling
+void processPath() {
+  // Check if there is a next segment.
+  if (!detectNode()) {
+    return;
+  }
+
+  if (pathIndex < updatedPathLength - 1) {
+    int current = updatedPath[pathIndex];
+    int next = updatedPath[pathIndex + 1];
+    int lastNode = (pathIndex == 0) ? -1 : updatedPath[pathIndex - 1];
+
+    int turnCode = getDirection(current, lastNode, next);
+    Serial.print("At node ");
+    Serial.print(current);
+    Serial.print(" -> next node ");
+    Serial.print(next);
+    Serial.print(" : Turn code = ");
+    Serial.println(turnCode);
+
+    // Perform Action based on direction
+    choosePath(turnCode);
+
+    // Increment the global path index to move to the next segment.
+    pathIndex++;
+  } else {
+    // If we have reached the end of the path, indicate completion.
+    Serial.println("Finished path. Waiting...");
+    // Enter an infinite loop to halt further processing.
+    while (true) {
+      Serial.println("Finished");
+      delay(2000);
+    }
+  }
+}
+
