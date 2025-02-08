@@ -5,7 +5,9 @@
 * Created On:       [06/02/2025]
 * Last Modified On: [06/02/2025]
 * Version:          [3]
-* Last Changes:     []
+* Last Changes:     [Changed the way detect node is handled. added bool atNode and check for node directly on sensor read
+Added extra cases for node handling at junction 7,
+Added parking; updated obstacle detection and check if current node = 5 ]
 *************************************************/
 
 #include <WiFi.h>
@@ -20,7 +22,7 @@
 #define motor1Phase 38  // Left motor phase
 #define motor2PWM 35  // Right motor enable (PWM)
 #define motor2Phase 36  // Right motor phase
-#define stopSensor 1    //obbstacle detection sensor
+#define obstacleSensor 1    //obbstacle detection sensor
 
 #define redPin 10
 #define greenPin 11
@@ -35,26 +37,35 @@ int baseSpeed = 160; // Base speed for the motors (0–255)
 
 //Node detection settings
 const int forwardDelay = 50;   // Time to move across line slightly
-const int stopDelay = 0;     // Stopping Time at node
+const unsigned long stopDelay = 30;     // Stopping Time at node
 const int rotationTime = 630;   // Time to turn 180 degrees
 const int turningTime = 350;    // Time to make a 90 degree turn 
 
+// PID parameters
+const float Kp = 0.35; // Proportional gain (0.35)
+const float Ki = 0.0;  // Integral gain (set to 0.00001 initially)
+const float Kd = 0.2;  // Derivative gain   (0.2)
+
+//Line detection Sensitivity
+const int whiteThreshold = 270; // Around 200 for white line. Greater means higher sensitivity
+const int blackThreshold = 2700; // Around 2700 for black surface
+const int obstacleThreshold = 1100;  //Obstacle Sensitivity
+
 // Wi-Fi credentials
-const char *ssid = "iot";                // Replace with your Wi-Fi SSID
-const char *password = "manganese30sulphating"; // Replace with your Wi-Fi password
+//const char *ssid = "iot";                // Replace with your Wi-Fi SSID
+//const char *password = "manganese30sulphating"; // Replace with your Wi-Fi password
 //const char *password = "overtechnicality7petrophilous";   // Secondary ESP32 
 
+const char *ssid = "VM4036270";
+const char *password = "ZCpdaz5pkvev";
 
 // IR sensor pins (only outermost sensors are used)
 const int IR_PINS[] = {4, 7, 5, 15}; // 2 sensors on the left, 2 on the right
 const int sensorCount = 4;
-int weights[] = {-2000, -1000, 1000, 2000};
-int sensorValues[sensorCount];
+const int weights[] = {-2000, -1000, 1000, 2000};
 
-//Line detection Sensitivity
-const int whiteThreshold = 270; // Around 200 for white line
-const int blackThreshold = 2700; // Around 2700 for black surface
-const int obstacleThreshold = 1100;  //Obstacle Sensitivity
+//DEBUG Version 
+int sensorValues[sensorCount] = {200, 200, 200, 200};
 
 //LED variables
 unsigned long previousMillis = 0;
@@ -63,17 +74,13 @@ int colorIndex = 0;
 //DRS variables
 const int PIDThreshold = 20;
 
-// PID parameters
-float Kp = 0.35; // Proportional gain (0.35)
-float Ki = 0.0;  // Integral gain (set to 0.00001 initially)
-float Kd = 0.2;  // Derivative gain   (0.2)
-
 float Pvalue = 0;
 float Ivalue = 0;
 float Dvalue = 0;
 int previousError = 0;
 
 
+bool atNode = false;
 const int nodeCount = 8; // Number of nodes
 
 // Adjacency Matrix
@@ -84,9 +91,9 @@ int weightMatrix[nodeCount][nodeCount] = {
   { INF,  INF,    0,    1, INF, INF,    1, INF },    // Node 2: connects to 3 and 6
   { INF,  INF,    1,    0, INF, INF,  INF,   1 },    // Node 3: connects to 2 and 7
   {   1,  INF,  INF,  INF,   0, INF,  INF,   1 },    // Node 4: connects to 0 and 7
-  { INF,  INF,  INF,  INF, INF,   0,  INF, INF },    // Node 5: isolated
+  { INF,  INF,  INF,  INF, INF,   0,  INF,   1 },    // Node 5: isolated
   {   1,    1,    1,  INF, INF, INF,    0, INF },    // Node 6: junction (nodes 0,1,2)
-  { INF,    1,  INF,    1,   1, INF,  INF,   0 }     // Node 7: junction (nodes 1,3,4)
+  { INF,    1,  INF,    1,   1,   1,  INF,   0 }     // Node 7: junction (nodes 1,3,4,5)
 };
 
 // Server details
@@ -94,12 +101,7 @@ const char *serverIP = "3.250.38.184"; // Server IP address
 const int serverPort = 8000;          // Server port
 const char *teamID = "rhtr2655";      // Replace with your team's ID
 
-// Position Variables
-int startingPosition = 0;  // Initial position of the robot
-int currentPosition = startingPosition;   // Track the robot's current position
-int nextPosition = 0;
-int lastPosition = -1;
-
+// Position
 bool forwardDirection = true;   //Start with forward direction
 
 //Route re-writing
@@ -128,46 +130,33 @@ void setup() {
 
   pinMode(DRSPin, OUTPUT);
 
-  pinMode(stopSensor, INPUT);
+  pinMode(obstacleSensor, INPUT);
   for (int i = 0; i < sensorCount; i++){
     pinMode(IR_PINS[i], INPUT);
   }
 
+  // initialise LEDS
+  setColour(255, 0, 0);
+
   // Start serial communication
   Serial.begin(115200);
+
   
-  switchDRS(1);   //Flip DRS On
+  connectToWiFi();        // Connect to Wi-Fi
+  route = getRoute();     // Obtain path
+  adjustPath();           //Convert string route to path array
+  computePath();          //Find shortest path and save to updatedPath arrray
 
-  // Connect to Wi-Fi
-  connectToWiFi();
-
-  // Obtain path
-  route = getRoute();
-
-  //Convert string route to path array
-  adjustPath();
-
-  //Find shortest path and save to updatedPath arrray
-  computePath();
-
-  //Serial.print("Shortest path: ");
-  //for (int i = updatedPathLength - 1; i >= 0; i--) {
-  //  Serial.print(updatedPath[i]);
-  //  if (i > 0) Serial.print(" -> ");
-  //}
-  //Serial.println();
-
-  //delay before starting 
+  setColour(0, 0, 0); 
+  //delay before starting
   delay(1000);
-
-  switchDRS(0);   //Flip drs off
+  setColour(0, 255, 0);
 }
 
 void loop() {
   readLineSensors();
-  processPath();
-  followLine();
-  //rainbowFade(10);
+  processPathDebug();
+  delay(5000);
 }
 
 //-------------------------------------------------------------
@@ -206,27 +195,19 @@ void sendPosition(int position) {
   client.println(); // End headers
   client.println(postBody); // Send body
 
-  // Read response
-  //String response = "";
-  //while (client.connected() || client.available()) {
-  //  if (client.available()) {
-  //    response = client.readString();
-  //    break;
-  //  }
-  //}
+  // Wait for a response but only for a short time (non-blocking)
+  unsigned long timeout = millis() + stopDelay;  // 100ms max wait time
+  while (millis() < timeout) {
+    if (client.available()) {
+      String response = client.readString();  // Read response
+      Serial.println("Full Server Response:");
+      Serial.println(response);
+      break; // Exit loop after reading response
+    }
+  }
 
   client.stop(); // Close connection
 
-  // Debug print the full response
-  //Serial.println("Full Server Response:");
-  //Serial.println(response);
-
-  //// Extract the HTTP status code
-  //int statusCode = getStatusCode(response);
-  //if (statusCode != 200) {
-  //    Serial.println("Error: Failed to retrieve next position. HTTP Status: " + String(statusCode));
-  //    return;
-  //}
 }
 
 // Function to read Route
@@ -351,22 +332,26 @@ void followLine() {
   driveMotor(leftSpeed, rightSpeed);
 }
 
-// Detect node (3 or more sensors detecting white)
-bool detectNode() {
+// Read IR sensor values and update array
+void readLineSensors(){
   int whiteCount = 0;
+  // Read sensor values
   for (int i = 0; i < sensorCount; i++) {
+    //Blank for debug
+    //sensorValues[i] = analogRead(IR_PINS[i]);
+    // Check for node if more than 3 sensors detect white line
     if (sensorValues[i] < whiteThreshold) {
       whiteCount++;
     }
   }
-  return (whiteCount >= 3); // Node detected if 3 or more sensors see white
-}
-
-// Read IR sensor values and update array
-void readLineSensors(){
-  // Read and debug sensor values
-  for (int i = 0; i < sensorCount; i++) {
-    sensorValues[i] = analogRead(IR_PINS[i]);
+  if (whiteCount >= 3) {
+    atNode = true;
+    // Debug
+    Serial.println("Node detected");
+  } else {
+    atNode = false;
+    //Debug
+    Serial.println("Node Not detected");
   }
 }
 
@@ -425,19 +410,18 @@ void right() {
 //-------------------------------------------------------------
 
 // Detect an obstacle in front of the sensor
-void obstacleDetection(){
-  // Debugging: Check stop sensor value
-  int stopSensorValue = analogRead(stopSensor);
-  Serial.print("Stop Sensor Value: ");
-  Serial.println(4095 - stopSensorValue);
+bool detectObstacle(){
+  // Check obstacle sensor value
+  //debug:
+  //int obstacleSensorValue = analogRead(obstacleSensor);
+  int obstacleSensorValue = 0;
 
-  if ((4095 - stopSensorValue) < obstacleThreshold) {
-    driveMotor(-baseSpeed, baseSpeed);   //rotate 180 degrees
-    delay(rotationTime);
-    driveMotor(0, 0);
-    delay(100);
-    return;
+  // check distance to obstacle
+  if ((4095 - obstacleSensorValue) < obstacleThreshold){
+    Serial.println("Obstacle Detected!");
+    return true;
   }
+  return false;
 }
 
 //-------------------------------------------------------------
@@ -497,38 +481,51 @@ int getJunctionDirection(int currentNode, int lastNode, int nextNode) {
   // Node 7 mapping: connected to nodes 1, 3, and 4.
   if (currentNode == 7) {
     if (lastNode == 1) {
-      if (nextNode == 4) return 2; // left -> node 4
+      if (nextNode == 1) return 0; // back -> node 1
       if (nextNode == 3) return 3; // right -> node 3
-      if (nextNode == 1) return 0; // back
+      if (nextNode == 4) return 2; // left -> node 4
+      if (nextNode == 5) return 1; // striaght -> node 5
     } else if (lastNode == 4) {
-      if (nextNode == 1) return 3; // right -> node 1
-      if (nextNode == 3) return 2; // left -> node 3
-      if (nextNode == 4) return 0; // back
+      if (nextNode == 1) {
+        forwardDirection = !forwardDirection; // flip direction
+        return 3; // right -> node 1
+      }
+      if (nextNode == 3) return 1; // straight -> node 3
+      if (nextNode == 4) return 0; // back -> node 4
+      if (nextNode == 5) return 2; // left -> node 5
     } else if (lastNode == 3) {
       if (nextNode == 1) {
         forwardDirection = !forwardDirection;
-        return 2; // left (with flip)
+        return 2; // left
       }
+      if (nextNode == 1) return 2; // left -> node 1
+      if (nextNode == 3) return 0; // back -> node 3
+      if (nextNode == 4) return 1; // straight -> node 4
+      if (nextNode == 5) return 3; // right -> node 5
     }
   }
   return -1; // error: mapping not found
 }
 
-
+//Debug Version of Choose Path
 void choosePath(int direction){
   switch (direction) {
     case 0:                              // reverse
-      reverse();                         // 180-degree turn
+      Serial.println("Turning Around");
+      //reverse();                         // 180-degree turn
       break;
     case 1:                              // Straight
-      driveMotor(baseSpeed, baseSpeed);
+      Serial.println("Going Straight");
+      //driveMotor(baseSpeed, baseSpeed);
       delay(forwardDelay);                             
       break;
     case 2:                              // Left
-      left();
+      Serial.println("Turning Left");
+      //left();
       break;
     case 3:
-      right();                          // Right
+      Serial.println("Turning Right");
+      //right();                          // Right
       if (forwardDirection) {
         forwardDirection = false;
       }
@@ -540,19 +537,17 @@ void choosePath(int direction){
   }
 }
 
-
-// Original processPath function with correct path handling
-void processPath() {
-  // Check if there is a next segment.
-  if (!detectNode()) {
+// Debug version of process path 
+void processPathDebug() {
+  if (!atNode) {
     return;
   }
-
+  
   if (pathIndex < updatedPathLength - 1) {
     int current = updatedPath[pathIndex];
     int next = updatedPath[pathIndex + 1];
     int lastNode = (pathIndex == 0) ? -1 : updatedPath[pathIndex - 1];
-
+    
     if (current != 6 && current != 7) {
       sendPosition(current);
     }
@@ -564,24 +559,37 @@ void processPath() {
     Serial.print(next);
     Serial.print(" : Turn code = ");
     Serial.println(turnCode);
+    
+    // Perform action based on turn code
+    if (next != 5) {
+      choosePath(turnCode);
+    } else {
+      while (!detectObstacle()){
+        Serial.println("In while loop, waiting for wall");
+        Serial.println(".");
+        delay(3000);
+        Serial.println("Wall detected");
+        //driveMotor(55, 50);
 
-    // Perform Action based on direction
-    choosePath(turnCode);
-
+        //debug
+        break;
+      }
+      sendPosition(5);
+    }
     // Increment the global path index to move to the next segment.
     pathIndex++;
   } else {
     // If we have reached the end of the path, indicate completion.
-    Serial.println("Finished path. Waiting...");
+    Serial.println("Finished path.");
+    sendPosition(updatedPath[updatedPathLength - 1]);
     // Enter an infinite loop to halt further processing.
     while (true) {
-      setColour(0,255,0);
-      delay(300);
-      setColour(0,0,0);
-      delay(300);
+      delay(10000);
+      Serial.println("Already Finished");
     }
   }
 }
+
 
 //-------------------------------------------------------------
 //----------------String-To-Array-Conversion-------------------
@@ -727,6 +735,12 @@ void computePath() {
       updatedPath[updatedPathLength++] = tempPath[j];
     }
   }
+  Serial.print("Shortest path: ");
+  for (int i = updatedPathLength - 1; i >= 0; i--) {
+    Serial.print(updatedPath[i]);
+    if (i > 0) Serial.print(" -> ");
+  }
+  Serial.println();
 }
 
 //-------------------------------------------------------------
@@ -770,38 +784,5 @@ void switchDRS(bool DRSPosition){
   }
 }
 
-
-// Debug version: Skip detectNode() for testing
-void processPathDebug() {
-  // This version skips detectNode() to test the rest of the path logic.
-  
-  if (pathIndex < updatedPathLength - 1) {
-    int current = updatedPath[pathIndex];
-    int next = updatedPath[pathIndex + 1];
-    int lastNode = (pathIndex == 0) ? -1 : updatedPath[pathIndex - 1];
-    
-    int turnCode = getDirection(current, lastNode, next);
-    Serial.print("At node ");
-    Serial.print(current);
-    Serial.print(" -> next node ");
-    Serial.print(next);
-    Serial.print(" : Turn code = ");
-    Serial.println(turnCode);
-    
-    // Perform Action based on direction
-    choosePath(turnCode);
-    
-    // Increment the global path index to move to the next segment.
-    pathIndex++;
-  } else {
-    // If we have reached the end of the path, indicate completion.
-    Serial.println("Finished path. Waiting...");
-    // Enter an infinite loop to halt further processing.
-    while (true) {
-      Serial.println("Finished");
-      delay(2000);
-    }
-  }
-}
 
 
