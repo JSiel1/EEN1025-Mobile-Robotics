@@ -95,6 +95,23 @@ int weightMatrix[nodeCount][nodeCount] = {
   { INF,    1,  INF,    1,   1,   1,  INF,   0 }     // Node 7: junction (nodes 1,3,4,5)
 };
 
+int path[MAX_PATH_SIZE];  // Final path with virtual nodes
+int pathLength = 0;  // Size of the updated path
+int updatedPath[MAX_PATH_SIZE];
+int updatedPathLength = 0;
+
+int pathIndex = 0;
+
+// Obstacle re-routing variables
+int tempPath[MAX_PATH_SIZE];
+int tempPathLength = 0;
+int reRouteIndex = 0;
+bool reRouteActive = false;
+
+int storeWeight = -1;
+int storeCurrent = -1;
+int storeNext = -1;
+
 // Server details
 const char *serverIP = "3.250.38.184"; // Server IP address
 const int serverPort = 8000;          // Server port
@@ -105,13 +122,6 @@ bool forwardDirection = true;   //Start with forward direction
 
 //Route re-writing
 String route = "";
-
-int path[MAX_PATH_SIZE];  // Final path with virtual nodes
-int pathLength = 0;  // Size of the updated path
-int updatedPath[MAX_PATH_SIZE];
-int updatedPathLength = 0;
-
-int pathIndex = 0;
 
 // Wifi class
 WiFiClient client;
@@ -157,7 +167,29 @@ void setup() {
 
 void loop() {
   readLineSensors();
-  processPathDebug();
+  
+  if (!reRouteActive) {
+    //Handle path with global path
+    processPath(updatedPath, pathIndex, updatedPathLength, false);
+  } else {
+    //Handle path with temporary path
+    processPath(tempPath, reRouteIndex, tempPathLength, true);
+
+    if (reRouteIndex >= tempPathLength) {
+      reRouteActive = false;
+      pathIndex++;
+
+      if (storeWeight != -1) {
+        Serial.println("Restoring original path.");
+        weightMatrix[storeCurrent][storeNext] = storeWeight;
+        weightMatrix[storeNext][storeCurrent] = storeWeight;
+        storeWeight = -1;
+        storeCurrent = -1;
+        storeNext = -1;
+      }
+    }
+  }
+  
   followLine();
 }
 
@@ -507,7 +539,7 @@ int getJunctionDirection(int currentNode, int lastNode, int nextNode) {
   return -1; // error: mapping not found
 }
 
-//Debug Version of Choose Path
+// Choose Path based on direction
 void choosePath(int direction){
   switch (direction) {
     case 0:                              // reverse
@@ -537,8 +569,8 @@ void choosePath(int direction){
   }
 }
 
-// Debug version of process path 
-void processPathDebug() {
+// Process path path array and keep track of position 
+void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute) {
   if (!atNode) {
     return;
   }
@@ -550,9 +582,9 @@ void processPathDebug() {
   delay(100);         // Wait for 1 second before resuming
 
   if (pathIndex < updatedPathLength - 1) {
-    int current = updatedPath[pathIndex];
-    int next = updatedPath[pathIndex + 1];
-    int lastNode = (pathIndex == 0) ? -1 : updatedPath[pathIndex - 1];
+    int current = currentPath[index];
+    int next = currentPath[index + 1];
+    int lastNode = (index == 0) ? -1 : currentPath[index - 1];
     
     if (current != 6 && current != 7) {
       sendPosition(current);
@@ -566,31 +598,37 @@ void processPathDebug() {
     Serial.print(" : Turn code = ");
     Serial.println(turnCode);
     
-    // Perform action based on turn code
-    if (next != 5) {
-      choosePath(turnCode);
-    } else {
-      choosePath(turnCode);
-      while (!detectObstacle()){
-        Serial.println("In while loop, waiting for wall");
-        Serial.println(".");
-        //delay(3000);
-        //Serial.println("Wall detected");
-        driveMotor(180, 185);
-
-        //debug
-        //break;
+    // Obstacle detection & temporary re-routing.
+    if (!isTempRoute && detectObstacle()) {
+      if (!reRoute(current, next)) {
+        Serial.println("Error in Re-routing: No alternate route possible.");
+        driveMotor(0, 0);
+        return;
       }
+      return; // Exit and let the next loop iteration process the temporary path
+    }
+
+    // Perform action based on turn code
+    choosePath(turnCode);
+    
+    if (next == 5) {
+      while (!detectObstacle()){
+        Serial.println("Waiting for wall");
+
+        //drive straight at wall
+        driveMotor(180, 185);
+      }
+      //Updated final position and stop
       sendPosition(5);
       driveMotor(0,0);
     }
     // Increment the global path index to move to the next segment.
-    pathIndex++;
+    index++;
   } else {
     // If we have reached the end of the path, indicate completion.
     Serial.println("Finished path.");
     sendPosition(updatedPath[updatedPathLength - 1]);
-    // Enter an infinite loop to halt further processing.
+    // Enter an infinite loop after finishing.
     while (true) {
       driveMotor(0,0);
       setColour(0, 255, 0);
@@ -754,6 +792,42 @@ void computePath() {
   Serial.println();
 }
 
+// re calculate route between current node and next node if obstacle detected.
+bool reRoute(int current, int next) {
+    Serial.println("Obstacle detected! Calculating temporary route...");
+
+    // Backup the original weight before removing the connection
+    storeWeight = weightMatrix[current][next];
+    storeCurrent = current;
+    storeNext = next;
+
+    // Temporarily remove the direct connection
+    weightMatrix[current][next] = INF;
+    weightMatrix[next][current] = INF;
+
+    // Compute temporary route
+    int newPath[MAX_PATH_SIZE];
+    int newPathLength = 0;
+    shortestPath(current, next, newPath, newPathLength);
+
+    if (newPathLength == 0) {
+        Serial.println("No alternate path found! Stopping robot.");
+        return false;  // Indicate failure
+    }
+
+    // Copy the new path into the tempPath array
+    for (int i = 0; i < newPathLength; i++) {
+        tempPath[i] = newPath[i];
+    }
+    tempPathLength = newPathLength;
+
+    // Activate temporary routing mode
+    reRouteActive = true;
+    reRouteIndex = 0;
+
+    return true;  // Indicate success
+}
+
 //-------------------------------------------------------------
 //---------------------------LED-------------------------------
 //-------------------------------------------------------------
@@ -794,6 +868,5 @@ void switchDRS(bool DRSPosition){
     digitalWrite(DRSPin, LOW);
   }
 }
-
 
 
