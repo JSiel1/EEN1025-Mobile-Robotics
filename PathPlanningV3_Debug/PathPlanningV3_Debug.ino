@@ -39,7 +39,7 @@ int baseSpeed = 160; // Base speed for the motors (0–255)
 const int forwardDelay = 50;   // Time to move across line slightly
 const unsigned long stopDelay = 30;     // Stopping Time at node
 const int rotationTime = 630;   // Time to turn 180 degrees
-const int turningTime = 350;    // Time to make a 90 degree turn 
+const int turningTime = 450;    // Time to make a 90 degree turn 
 
 // PID parameters
 const float Kp = 0.35; // Proportional gain (0.35)
@@ -52,12 +52,9 @@ const int blackThreshold = 2700; // Around 2700 for black surface
 const int obstacleThreshold = 1100;  //Obstacle Sensitivity
 
 // Wi-Fi credentials
-//const char *ssid = "iot";                // Replace with your Wi-Fi SSID
-//const char *password = "manganese30sulphating"; // Replace with your Wi-Fi password
+const char *ssid = "iot";                // Replace with your Wi-Fi SSID
+const char *password = "manganese30sulphating"; // Replace with your Wi-Fi password
 //const char *password = "overtechnicality7petrophilous";   // Secondary ESP32 
-
-const char *ssid = "VM4036270";
-const char *password = "ZCpdaz5pkvev";
 
 // IR sensor pins (only outermost sensors are used)
 const int IR_PINS[] = {4, 7, 5, 15}; // 2 sensors on the left, 2 on the right
@@ -65,7 +62,9 @@ const int sensorCount = 4;
 const int weights[] = {-2000, -1000, 1000, 2000};
 
 //DEBUG Version 
-int sensorValues[sensorCount] = {200, 200, 200, 200};
+//int sensorValues[sensorCount] = {200, 200, 200, 200};
+
+int sensorValues[sensorCount];
 
 //LED variables
 unsigned long previousMillis = 0;
@@ -135,9 +134,11 @@ void setup() {
     pinMode(IR_PINS[i], INPUT);
   }
 
+  driveMotor(0,0);
   // initialise LEDS
-  setColour(255, 0, 0);
-
+  //setColour(255, 0, 0);
+  //switchDRS(1);
+  
   // Start serial communication
   Serial.begin(115200);
 
@@ -147,16 +148,17 @@ void setup() {
   adjustPath();           //Convert string route to path array
   computePath();          //Find shortest path and save to updatedPath arrray
 
-  setColour(0, 0, 0); 
+  //setColour(0, 0, 0); 
   //delay before starting
   delay(1000);
-  setColour(0, 255, 0);
+  //setColour(0, 255, 0);
+  //switchDRS(0);
 }
 
 void loop() {
   readLineSensors();
   processPathDebug();
-  delay(5000);
+  followLine();
 }
 
 //-------------------------------------------------------------
@@ -338,7 +340,7 @@ void readLineSensors(){
   // Read sensor values
   for (int i = 0; i < sensorCount; i++) {
     //Blank for debug
-    //sensorValues[i] = analogRead(IR_PINS[i]);
+    sensorValues[i] = analogRead(IR_PINS[i]);
     // Check for node if more than 3 sensors detect white line
     if (sensorValues[i] < whiteThreshold) {
       whiteCount++;
@@ -350,8 +352,6 @@ void readLineSensors(){
     Serial.println("Node detected");
   } else {
     atNode = false;
-    //Debug
-    Serial.println("Node Not detected");
   }
 }
 
@@ -389,7 +389,7 @@ void left() {
 
 // function to do a 180 degree turn
 void reverse() {
-  driveMotor(baseSpeed, -baseSpeed);
+  driveMotor(255, -255);
   delay(rotationTime);
   driveMotor(80, 80);
   delay(forwardDelay);
@@ -413,8 +413,8 @@ void right() {
 bool detectObstacle(){
   // Check obstacle sensor value
   //debug:
-  //int obstacleSensorValue = analogRead(obstacleSensor);
-  int obstacleSensorValue = 0;
+  int obstacleSensorValue = analogRead(obstacleSensor);
+  //int obstacleSensorValue = 0;
 
   // check distance to obstacle
   if ((4095 - obstacleSensorValue) < obstacleThreshold){
@@ -512,20 +512,20 @@ void choosePath(int direction){
   switch (direction) {
     case 0:                              // reverse
       Serial.println("Turning Around");
-      //reverse();                         // 180-degree turn
+      reverse();                         // 180-degree turn
       break;
     case 1:                              // Straight
       Serial.println("Going Straight");
-      //driveMotor(baseSpeed, baseSpeed);
+      driveMotor(210, 200);
       delay(forwardDelay);                             
       break;
     case 2:                              // Left
       Serial.println("Turning Left");
-      //left();
+      left();
       break;
     case 3:
       Serial.println("Turning Right");
-      //right();                          // Right
+      right();                          // Right
       if (forwardDirection) {
         forwardDirection = false;
       }
@@ -543,6 +543,12 @@ void processPathDebug() {
     return;
   }
   
+  driveMotor(0, 0); // Stop the robot
+  driveMotor(80, 80); // Drive forward at low speed
+  delay(forwardDelay);          // Move slightly forward to cross the line
+  driveMotor(0, 0);   // Stop again
+  delay(100);         // Wait for 1 second before resuming
+
   if (pathIndex < updatedPathLength - 1) {
     int current = updatedPath[pathIndex];
     int next = updatedPath[pathIndex + 1];
@@ -564,17 +570,19 @@ void processPathDebug() {
     if (next != 5) {
       choosePath(turnCode);
     } else {
+      choosePath(turnCode);
       while (!detectObstacle()){
         Serial.println("In while loop, waiting for wall");
         Serial.println(".");
-        delay(3000);
-        Serial.println("Wall detected");
-        //driveMotor(55, 50);
+        //delay(3000);
+        //Serial.println("Wall detected");
+        driveMotor(180, 185);
 
         //debug
-        break;
+        //break;
       }
       sendPosition(5);
+      driveMotor(0,0);
     }
     // Increment the global path index to move to the next segment.
     pathIndex++;
@@ -584,8 +592,11 @@ void processPathDebug() {
     sendPosition(updatedPath[updatedPathLength - 1]);
     // Enter an infinite loop to halt further processing.
     while (true) {
-      delay(10000);
-      Serial.println("Already Finished");
+      driveMotor(0,0);
+      setColour(0, 255, 0);
+      delay(300);
+      setColour(0,0,0);
+      delay(300);
     }
   }
 }
