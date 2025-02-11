@@ -89,14 +89,14 @@ const int nodeCount = 8; // Number of nodes
 // Adjacency Matrix
 int weightMatrix[nodeCount][nodeCount] = {
   //   0    1     2     3    4    5     6     7
-  {    0, INF,  INF,  INF,   1, INF,    1, INF },    // Node 0: connects to 4 and 6
-  { INF,    0,  INF,  INF, INF, INF,    1,   1 },    // Node 1: connects to 6 and 7
-  { INF,  INF,    0,    1, INF, INF,    1, INF },    // Node 2: connects to 3 and 6
-  { INF,  INF,    1,    0, INF, INF,  INF,   1 },    // Node 3: connects to 2 and 7
-  {   1,  INF,  INF,  INF,   0, INF,  INF,   1 },    // Node 4: connects to 0 and 7
+  {    0, INF,  INF,  INF,   1, INF,    2, INF },    // Node 0: connects to 4 and 6
+  { INF,    0,  INF,  INF, INF, INF,    1,   3 },    // Node 1: connects to 6 and 7
+  { INF,  INF,    0,    1, INF, INF,    2, INF },    // Node 2: connects to 3 and 6
+  { INF,  INF,    1,    0, INF, INF,  INF,   2 },    // Node 3: connects to 2 and 7
+  {   2,  INF,  INF,  INF,   0, INF,  INF,   1 },    // Node 4: connects to 0 and 7
   { INF,  INF,  INF,  INF, INF,   0,  INF,   1 },    // Node 5: isolated
-  {   1,    1,    1,  INF, INF, INF,    0, INF },    // Node 6: junction (nodes 0,1,2)
-  { INF,    1,  INF,    1,   1,   1,  INF,   0 }     // Node 7: junction (nodes 1,3,4,5)
+  {   3,    1,    2,  INF, INF, INF,    0, INF },    // Node 6: junction (nodes 0,1,2)
+  { INF,    2,  INF,    2,   1,   1,  INF,   0 }     // Node 7: junction (nodes 1,3,4,5)
 };
 
 int path[MAX_PATH_SIZE];  // Final path with virtual nodes
@@ -156,7 +156,7 @@ void setup() {
   // Start serial communication
   Serial.begin(115200);
 
-  
+  // Connect to server, recieve path and re-arrange route
   connectToWiFi();        // Connect to Wi-Fi
   route = getRoute();     // Obtain path
   adjustPath();           //Convert string route to path array
@@ -479,8 +479,9 @@ bool detectObstacle() {
 // Get next direction
 int getDirection(int currentNode, int lastNode, int nextNode) {
   // At the starting position, assume going straight.
-  if (lastNode == -1)
-    return 1;
+  if (lastNode == -1) {
+    return (forwardDirection ? 1 : 0);
+  }
     
   // Count valid neighbors for the current node.
   int validCount = 0;
@@ -568,12 +569,12 @@ void choosePath(int direction){
       delay(forwardDelay);                             
       break;
     case 2:                              // Left
-      //Serial.println("Turning Left");
-      left();
+      Serial.println("Turning Left");
+      //left();
       break;
     case 3:
-      //Serial.println("Turning Right");
-      right();                          // Right
+      Serial.println("Turning Right");
+      //right();                          // Right
       if (forwardDirection) {
         forwardDirection = false;
       }
@@ -646,7 +647,7 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
     Serial.print(" : Turn code = ");
     Serial.println(turnCode);
 
-    delay(2000);
+    delay(3000);
     
     // Perform action based on turn code
     choosePath(turnCode);
@@ -834,10 +835,25 @@ void computePath() {
       updatedPath[updatedPathLength++] = tempPath[j];
     }
   }
+
+  // check if next position is behind starting position
+  if (updatedPathLength > 1) {  // Ensure at least two positions exist
+    int start = updatedPath[0];
+    int next = updatedPath[1];
+
+    // Check if which node has higher weighting to indicate if starting in reverse direction
+    if (weightMatrix[next][start] != INF && weightMatrix[start][next] != INF) {
+      if (weightMatrix[next][start] > weightMatrix[start][next]) {
+        forwardDirection = false;  // Flip direction
+        Serial.println("Starting Direction flipped");
+      }
+    }
+  }
+
   Serial.print("Shortest path: ");
-  for (int i = updatedPathLength - 1; i >= 0; i--) {
+  for (int i =  0; i < updatedPathLength; i++) {
     Serial.print(updatedPath[i]);
-    if (i > 0) Serial.print(" -> ");
+    if (i < updatedPathLength -1) Serial.print(" -> ");
   }
   Serial.println();
 }
