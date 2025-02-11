@@ -33,23 +33,24 @@ Added parking; updated obstacle detection and check if current node = 5 ]
 // Motor Speeds
 int leftSpeed = 0;
 int rightSpeed = 0;
-int baseSpeed = 160; // Base speed for the motors (0–255)
+const int baseSpeed = 160;   // Base speed for the motors (0–255) 200
+const int turnSpeed = 160;   // Turning Speed 190
 
 //Node detection settings
-const int forwardDelay = 50;   // Time to move across line slightly
-const unsigned long stopDelay = 30;     // Stopping Time at node
-const int rotationTime = 630;   // Time to turn 180 degrees
+const int forwardDelay = 60;   // Time to move across line slightly
+const unsigned long stopDelay = 50;     // Stopping Time at node
+const int rotationTime = 900;   // Time to turn 180 degrees
 const int turningTime = 450;    // Time to make a 90 degree turn 
 
 // PID parameters
 const float Kp = 0.35; // Proportional gain (0.35)
 const float Ki = 0.0;  // Integral gain (set to 0.00001 initially)
-const float Kd = 0.2;  // Derivative gain   (0.2)
+const float Kd = 0.22;  // Derivative gain   (0.2)
 
 //Line detection Sensitivity
 const int whiteThreshold = 270; // Around 200 for white line. Greater means higher sensitivity
 const int blackThreshold = 2700; // Around 2700 for black surface
-const int obstacleThreshold = 1100;  //Obstacle Sensitivity
+const int obstacleThreshold = 300;  //Obstacle Sensitivity. Higher means further sensing
 
 // Wi-Fi credentials
 const char *ssid = "iot";                // Replace with your Wi-Fi SSID
@@ -69,6 +70,7 @@ int sensorValues[sensorCount];
 //LED variables
 unsigned long previousMillis = 0;
 int colorIndex = 0;
+float colourBrightness = 0.5;
 
 //DRS variables
 const int PIDThreshold = 20;
@@ -146,8 +148,8 @@ void setup() {
 
   driveMotor(0,0);
   // initialise LEDS
-  //setColour(255, 0, 0);
-  //switchDRS(1);
+  setColour(255, 0, 0);
+  switchDRS(1);
   
   // Start serial communication
   Serial.begin(115200);
@@ -158,11 +160,10 @@ void setup() {
   adjustPath();           //Convert string route to path array
   computePath();          //Find shortest path and save to updatedPath arrray
 
-  //setColour(0, 0, 0); 
   //delay before starting
   delay(1000);
-  //setColour(0, 255, 0);
-  //switchDRS(0);
+  setColour(0, 255, 0);
+  switchDRS(0);
 }
 
 void loop() {
@@ -175,9 +176,10 @@ void loop() {
     //Handle path with temporary path
     processPath(tempPath, reRouteIndex, tempPathLength, true);
 
-    if (reRouteIndex >= tempPathLength) {
+    if (reRouteIndex >= tempPathLength - 1) {
       reRouteActive = false;
-      pathIndex++;
+      //pathIndex++;
+      Serial.println("Re-route deactivated");
 
       if (storeWeight != -1) {
         Serial.println("Restoring original path.");
@@ -352,6 +354,7 @@ void followLine() {
     rightSpeed = baseSpeed + PIDvalue;
   }
 
+  //flip drs if PID threshold reached
   if (PIDvalue > PIDThreshold){
     switchDRS(1);
   } else {
@@ -412,7 +415,7 @@ void driveMotor(int left, int right) {
 
 // function to turn left
 void left() {
-  driveMotor(baseSpeed, -baseSpeed);    // Rotate in place
+  driveMotor(turnSpeed, -turnSpeed);    // Rotate in place
   delay(turningTime);                   // Adjust delay for a 180-degree turn
   driveMotor(80, 80);
   delay(forwardDelay);
@@ -421,7 +424,7 @@ void left() {
 
 // function to do a 180 degree turn
 void reverse() {
-  driveMotor(255, -255);
+  driveMotor(turnSpeed, -turnSpeed);
   delay(rotationTime);
   driveMotor(80, 80);
   delay(forwardDelay);
@@ -429,7 +432,7 @@ void reverse() {
 
 // function to turn right
 void right() {
-  driveMotor(-baseSpeed, baseSpeed);    // Rotate in place
+  driveMotor(-turnSpeed, turnSpeed);    // Rotate in place
   delay(turningTime);                   // Adjust delay for a 180-degree turn
   driveMotor(80, 80);
   delay(forwardDelay);
@@ -444,9 +447,9 @@ void right() {
 // Detect an obstacle in front of the sensor
 bool detectObstacle(){
   // Check obstacle sensor value
-  //debug:
   int obstacleSensorValue = analogRead(obstacleSensor);
-  //int obstacleSensorValue = 0;
+  //Serial.print("Sensor Value:");
+  Serial.println(4095 - obstacleSensorValue);
 
   // check distance to obstacle
   if ((4095 - obstacleSensorValue) < obstacleThreshold){
@@ -571,6 +574,37 @@ void choosePath(int direction){
 
 // Process path path array and keep track of position 
 void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute) {
+  int current = currentPath[index];
+  int next = currentPath[index + 1];
+  int lastNode = (index == 0) ? -1 : currentPath[index - 1];
+
+  //print path for debug
+  //Serial.print("processing Path: ");
+  //for (int j = 0; j < pathLength; j++) {
+  //  Serial.print(currentPath[j]);
+  //  if ( j >= 0 && j < pathLength-1) Serial.print(" -> ");
+  //}
+  //Serial.println("");
+
+  // Obstacle detection & temporary re-routing.
+  if (!isTempRoute && detectObstacle()) {
+    int adjustedCurrent = 0;
+    int adjustedNext = 0;
+
+    if (index > 0) {
+      current = currentPath[index - 1];
+      next = currentPath[index];
+    } 
+
+    if (!reRoute(current, next)) {
+      Serial.println("Error in Re-routing: No alternate route possible.");
+      driveMotor(0, 0);
+      return;
+    }
+    return; // Exit and let the next loop iteration process the temporary path
+  }
+
+  //Return if not at node
   if (!atNode) {
     return;
   }
@@ -579,14 +613,14 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
   driveMotor(80, 80); // Drive forward at low speed
   delay(forwardDelay);          // Move slightly forward to cross the line
   driveMotor(0, 0);   // Stop again
-  delay(100);         // Wait for 1 second before resuming
+  
+  //Debug
+  delay(500);         // Wait for 1 second before resuming
 
-  if (pathIndex < updatedPathLength - 1) {
-    int current = currentPath[index];
-    int next = currentPath[index + 1];
+  if (index < pathLength - 1) {
     int lastNode = (index == 0) ? -1 : currentPath[index - 1];
     
-    if (current != 6 && current != 7) {
+    if (current != 6 && current != 7 && isTempRoute) {
       sendPosition(current);
     }
 
@@ -597,17 +631,8 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
     Serial.print(next);
     Serial.print(" : Turn code = ");
     Serial.println(turnCode);
-    
-    // Obstacle detection & temporary re-routing.
-    if (!isTempRoute && detectObstacle()) {
-      if (!reRoute(current, next)) {
-        Serial.println("Error in Re-routing: No alternate route possible.");
-        driveMotor(0, 0);
-        return;
-      }
-      return; // Exit and let the next loop iteration process the temporary path
-    }
 
+    
     // Perform action based on turn code
     choosePath(turnCode);
     
@@ -616,15 +641,15 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
         Serial.println("Waiting for wall");
 
         //drive straight at wall
-        driveMotor(180, 185);
+        driveMotor(170, 180);
       }
       //Updated final position and stop
-      sendPosition(5);
       driveMotor(0,0);
+      sendPosition(5);
     }
     // Increment the global path index to move to the next segment.
     index++;
-  } else {
+  } else if (!isTempRoute) {
     // If we have reached the end of the path, indicate completion.
     Serial.println("Finished path.");
     sendPosition(updatedPath[updatedPathLength - 1]);
@@ -636,6 +661,13 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
       setColour(0,0,0);
       delay(300);
     }
+  } else {
+    Serial.println("Temp Route exit ");
+    Serial.print("Temp index: ");
+    Serial.println(reRouteIndex);
+    Serial.print("Path Length: ");
+    Serial.println(tempPathLength);
+    delay(1000);
   }
 }
 
@@ -768,7 +800,7 @@ void computePath() {
     // Compute the shortest path from path[i] to path[i+1]
     shortestPath(path[i+1], path[i], tempPath, tempPathLength);
 
-    // If no path was found, print an error and reset updatedPathLength.
+    // If no path was found, print an debug and reset updatedPathLength.
     if (tempPathLength == 0) {
       Serial.print("No path found between ");
       Serial.print(path[i]);
@@ -796,6 +828,10 @@ void computePath() {
 bool reRoute(int current, int next) {
     Serial.println("Obstacle detected! Calculating temporary route...");
 
+
+    // stop the robot before the obstacle
+    driveMotor(0,0);
+
     // Backup the original weight before removing the connection
     storeWeight = weightMatrix[current][next];
     storeCurrent = current;
@@ -808,22 +844,32 @@ bool reRoute(int current, int next) {
     // Compute temporary route
     int newPath[MAX_PATH_SIZE];
     int newPathLength = 0;
-    shortestPath(current, next, newPath, newPathLength);
+    shortestPath(next, current, newPath, newPathLength);    //changed this
 
     if (newPathLength == 0) {
-        Serial.println("No alternate path found! Stopping robot.");
+        Serial.println("Re-route Error: No alternate path found! Stopping robot.");
         return false;  // Indicate failure
     }
 
-    // Copy the new path into the tempPath array
+    // Copy the new path into the tempPath array AND DEBUG
     for (int i = 0; i < newPathLength; i++) {
         tempPath[i] = newPath[i];
     }
     tempPathLength = newPathLength;
 
+    // DEBUG
+    Serial.print("Re-route: ");
+    for (int j = 0; j < tempPathLength; j++) {
+      Serial.print(tempPath[j]);
+      if (j >= 0 && j < pathLength) Serial.print(" -> ");
+    }
+
     // Activate temporary routing mode
     reRouteActive = true;
     reRouteIndex = 0;
+
+    //turn the robot around.
+    reverse();
 
     return true;  // Indicate success
 }
@@ -834,9 +880,9 @@ bool reRoute(int current, int next) {
 
 // Function to set RGB color
 void setColour(int r, int g, int b) {
-    analogWrite(redPin, r);
-    analogWrite(greenPin, g);
-    analogWrite(bluePin, b);
+    analogWrite(redPin, r*colourBrightness);
+    analogWrite(greenPin, g*colourBrightness);
+    analogWrite(bluePin, b*colourBrightness);
 }
 
 // Function to generate rainbow colors
