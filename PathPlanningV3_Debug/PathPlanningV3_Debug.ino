@@ -50,7 +50,7 @@ const float Kd = 0.22;  // Derivative gain   (0.2)
 //Line detection Sensitivity
 const int whiteThreshold = 270; // Around 200 for white line. Greater means higher sensitivity
 const int blackThreshold = 2700; // Around 2700 for black surface
-const int obstacleThreshold = 300;  //Obstacle Sensitivity. Higher means further sensing
+const int obstacleThreshold = 2500;  //Obstacle Sensitivity. Higher means further sensing
 
 // Wi-Fi credentials
 const char *ssid = "iot";                // Replace with your Wi-Fi SSID
@@ -445,19 +445,29 @@ void right() {
 //-------------------------------------------------------------
 
 // Detect an obstacle in front of the sensor
-bool detectObstacle(){
-  // Check obstacle sensor value
-  int obstacleSensorValue = analogRead(obstacleSensor);
-  //Serial.print("Sensor Value:");
-  Serial.println(4095 - obstacleSensorValue);
+bool detectObstacle() {
+  int totalValue = 0;
+  int numSamples = 2;
 
-  // check distance to obstacle
-  if ((4095 - obstacleSensorValue) < obstacleThreshold){
+  // Take multiple readings and compute the average
+  for (int i = 0; i < numSamples; i++) {
+    totalValue += analogRead(obstacleSensor);
+    delay(5); // Small delay to allow readings to stabilize
+  }
+
+  int avgSensorValue = totalValue / numSamples;
+  int adjustedValue = 4095 - avgSensorValue;
+
+  Serial.println(adjustedValue);
+
+  // Check distance to obstacle
+  if (adjustedValue < obstacleThreshold) {
     Serial.println("Obstacle Detected!");
     return true;
   }
   return false;
 }
+
 
 //-------------------------------------------------------------
 //-----------------Path Following Logic------------------------
@@ -632,6 +642,7 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
     Serial.print(" : Turn code = ");
     Serial.println(turnCode);
 
+    delay(2000);
     
     // Perform action based on turn code
     choosePath(turnCode);
