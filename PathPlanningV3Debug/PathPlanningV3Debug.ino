@@ -68,6 +68,9 @@ const int weights[] = {-2000, -1000, 1000, 2000};
 
 //DEBUG Version 
 int sensorValues[sensorCount] = {200, 200, 200, 200};
+int totalValue = 0;
+
+//int sensorValues[sensorCount];
 
 //LED variables
 unsigned long previousMillis = 0;
@@ -123,6 +126,7 @@ const char *teamID = "rhtr2655";      // Replace with your team's ID
 
 // Position
 bool forwardDirection = true;   //Start with forward direction
+int lastNode = -1;
 
 //Route re-writing
 String route = "";
@@ -170,7 +174,13 @@ void setup() {
 
 void loop() {
   readLineSensors();
-  
+
+  // Debug 
+  if (Serial.available() > 0) {  // Check if there's data in Serial Monitor
+      Serial.read();  // Read and discard input
+      totalValue = 4095;  // Simulate obstacle detected
+  }
+
   if (!reRouteActive) {
     //Handle path with global path
     processPath(updatedPath, pathIndex, updatedPathLength, false);
@@ -180,7 +190,6 @@ void loop() {
 
     if (reRouteIndex >= tempPathLength - 1) {
       reRouteActive = false;
-      //pathIndex++;
       Serial.println("Re-route deactivated");
 
       if (storeWeight != -1) {
@@ -195,6 +204,7 @@ void loop() {
   }
   
   followLine();
+  totalValue = 1;
 }
 
 //-------------------------------------------------------------
@@ -448,7 +458,7 @@ void right() {
 
 // Detect an obstacle in front of the sensor
 bool detectObstacle() {
-  int totalValue = 1;     //debug - 0
+  //int totalValue = 0; // debug
   int numSamples = 2;
 
   //DebugVersion
@@ -531,7 +541,10 @@ int getJunctionDirection(int currentNode, int lastNode, int nextNode) {
   if (currentNode == 7) {
     if (lastNode == 1) {
       if (nextNode == 1) return 0; // back -> node 1
-      if (nextNode == 3) return 3; // right -> node 3
+      if (nextNode == 3) {
+        forwardDirection = !forwardDirection;
+        return 3; // right -> node 3
+      }
       if (nextNode == 4) return 2; // left -> node 4
       if (nextNode == 5) return 1; // striaght -> node 5
     } else if (lastNode == 4) {
@@ -590,7 +603,8 @@ void choosePath(int direction){
 void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute) {
   int current = currentPath[index];
   int next = currentPath[index + 1];
-  int lastNode = (index == 0) ? -1 : currentPath[index - 1];
+  //int lastNode = (index == 0) ? -1 : currentPath[index - 1];
+  lastNode = (index == 0) ? -1 : currentPath[index - 1];
 
   //print path for debug
   //Serial.print("processing Path: ");
@@ -632,7 +646,6 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
   delay(500);         // Wait for 1 second before resuming
 
   if (index < pathLength - 1) {
-    int lastNode = (index == 0) ? -1 : currentPath[index - 1];
     
     // Only send position if not at junction and not in temporary route
     if (current != 6 && current != 7 && !isTempRoute) {
