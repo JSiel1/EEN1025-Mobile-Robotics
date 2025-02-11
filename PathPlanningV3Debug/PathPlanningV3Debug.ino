@@ -126,7 +126,6 @@ const char *teamID = "rhtr2655";      // Replace with your team's ID
 
 // Position
 bool forwardDirection = true;   //Start with forward direction
-int lastNode = -1;
 
 //Route re-writing
 String route = "";
@@ -189,7 +188,6 @@ void loop() {
     processPath(tempPath, reRouteIndex, tempPathLength, true);
 
     if (reRouteIndex >= tempPathLength - 1) {
-      reRouteActive = false;
       Serial.println("Re-route deactivated");
 
       if (storeWeight != -1) {
@@ -604,7 +602,13 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
   int current = currentPath[index];
   int next = currentPath[index + 1];
   //int lastNode = (index == 0) ? -1 : currentPath[index - 1];
-  lastNode = (index == 0) ? -1 : currentPath[index - 1];
+  static int lastNode = -1;
+
+
+  // Reset lastNode on index = 0
+  if (index == 0) {
+    lastNode = -1;
+  }
 
   //print path for debug
   //Serial.print("processing Path: ");
@@ -616,13 +620,8 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
 
   // Obstacle detection & temporary re-routing.
   if (!isTempRoute && detectObstacle()) {
-    int adjustedCurrent = 0;
-    int adjustedNext = 0;
-
-    if (index > 0) {
-      current = currentPath[index - 1];
-      next = currentPath[index];
-    } 
+    int adjustedCurrent = (index > 0 ? currentPath[index - 1] : current);
+    int adjustedNext = (index > 0 ? currentPath[index] : next);
 
     if (!reRoute(current, next)) {
       Serial.println("Error in Re-routing: No alternate route possible.");
@@ -630,6 +629,17 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
       return;
     }
     return; // Exit and let the next loop iteration process the temporary path
+  }
+
+  if (isTempRoute && index >= pathLength) {
+    Serial.println("Re-route finished. Returning to original path.");
+
+    // Store lastNode from the tempPath before switching back
+    lastNode = current;
+
+    // Switch back to the original path
+    reRouteActive = false;
+    return;
   }
 
   //Return if not at node
@@ -646,7 +656,6 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
   delay(500);         // Wait for 1 second before resuming
 
   if (index < pathLength - 1) {
-    
     // Only send position if not at junction and not in temporary route
     if (current != 6 && current != 7 && !isTempRoute) {
       sendPosition(current);
@@ -679,6 +688,8 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
       driveMotor(0,0);
       sendPosition(5);
     }
+
+    lastNode = current;
     // Increment the global path index to move to the next segment.
     index++;
   } else if (!isTempRoute) {
