@@ -40,15 +40,15 @@ int pivotSpeed = 255;  // Speed for sharp turns
 int middleCorrection = 50;   // Small correction if middle sensor detects line
 
 //Node detection settings
-const int forwardDelay = 60;   // Time to move across line slightly
+const int forwardDelay = 80;   // Time to move across line slightly
 const unsigned long stopDelay = 50;     // Stopping Time at node
 const int rotationTime = 850;   // Time to turn 180 degrees
 const int turningTime = 450;    // Time to make a 90 degree turn 
 
 // PID parameters
-const float Kp = 0.6; // Proportional gain (0.35)
+const float Kp = 0.7; // Proportional gain (0.65)
 const float Ki = 0.00;  // Integral gain (set to 0.00001 initially)
-const float Kd = 3.8;  // Derivative gain   (0.2)
+const float Kd = 3.8;  // Derivative gain   (3.8)
 
 //Line detection Sensitivity
 const int whiteThreshold = 400; // Around 200 for white line. Greater means higher sensitivity
@@ -73,7 +73,7 @@ int colorIndex = 0;
 float colourBrightness = 0.5;
 
 //DRS variables
-const int PIDThreshold = 20;
+const int PIDThreshold = 40;
 
 int previousError = 0;
 int integralError = 0;
@@ -88,10 +88,10 @@ int weightMatrix[nodeCount][nodeCount] = {
   { INF,    0,  INF,  INF, INF, INF,    1,   3 },    // Node 1: connects to 6 and 7
   { INF,  INF,    0,    1, INF, INF,    2, INF },    // Node 2: connects to 3 and 6
   { INF,  INF,    1,    0, INF, INF,  INF,   2 },    // Node 3: connects to 2 and 7
-  {   2,  INF,  INF,  INF,   0, INF,  INF,   1 },    // Node 4: connects to 0 and 7
+  {   2,  INF,  INF,  INF,   0, INF,  INF,   2 },    // Node 4: connects to 0 and 7
   { INF,  INF,  INF,  INF, INF,   0,  INF,   1 },    // Node 5: isolated
   {   2,    1,    2,  INF, INF, INF,    0, INF },    // Node 6: junction (nodes 0,1,2)
-  { INF,    2,  INF,    2,   1,   1,  INF,   0 }     // Node 7: junction (nodes 1,3,4,5)
+  { INF,    2,  INF,    2,   2,   1,  INF,   0 }     // Node 7: junction (nodes 1,3,4,5)
 };
 
 int path[MAX_PATH_SIZE];  // Final path with virtual nodes
@@ -354,6 +354,12 @@ void followLine() {
   leftSpeed  = constrain(leftSpeed, 0, 250);
   rightSpeed = constrain(rightSpeed, 0, 250);
 
+  if (pidOut > PIDThreshold) {
+    switchDRS(1);
+  } else {
+    switchDRS(0);
+  }
+
 
   driveMotor(leftSpeed, rightSpeed);
 }
@@ -366,16 +372,11 @@ void readLineSensors(){
     // Read sensor Values and update array
     sensorValues[i] = analogRead(IR_PINS[i]);
     // Check for node if more than 3 sensors detect white line
-    Serial.print(sensorValues[i]); // This prints the actual analog reading from the sensors
-    Serial.print("\t"); //tab over on screen
-    if(i==sensorCount-1) {
-      Serial.println(""); //carriage return
-    }
     if (sensorValues[i] < whiteThreshold) {
       whiteCount++;
     }
   }
-  if (whiteCount >= 4) {
+  if (whiteCount >= 3) {
     atNode = true;
     Serial.println("Node detected");
   } else {
@@ -623,9 +624,6 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
   driveMotor(80, 80); // Drive forward at low speed
   delay(forwardDelay);          // Move slightly forward to cross the line
   driveMotor(0, 0);   // Stop again
-  
-  //Debug
-  delay(500);         // Wait for 1 second before resuming
 
   if (index < pathLength - 1) {
     // Only send position on nodes and not during re-routing    
@@ -643,18 +641,24 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
     
     // Perform action based on turn code
     choosePath(turnCode);
-    delay(500);
     
     if (next == 5) {
       while (!detectObstacle()){
         Serial.println("Waiting for wall");
 
         //drive straight at wall
-        driveMotor(170, 180);
+        driveMotor(170, 185);
       }
       //Updated final position and stop
       driveMotor(0,0);
       sendPosition(5);
+      while (1) {
+        driveMotor(0,0);
+        setColour(0, 255, 0);
+        delay(300);
+        setColour(0,0,0);
+        delay(300);
+      }
     }
     // Increment the global path index to move to the next segment.
     index++;
@@ -943,5 +947,3 @@ void switchDRS(bool DRSPosition){
     digitalWrite(DRSPin, LOW);
   }
 }
-
-
