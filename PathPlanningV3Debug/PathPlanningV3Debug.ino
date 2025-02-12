@@ -92,14 +92,14 @@ const int nodeCount = 8; // Number of nodes
 // Adjacency Matrix
 int weightMatrix[nodeCount][nodeCount] = {
   //   0    1     2     3    4    5     6     7
-  {    0, INF,  INF,  INF,   1, INF,    3, INF },    // Node 0: connects to 4 and 6
-  { INF,    0,  INF,  INF, INF, INF,    1,   3 },    // Node 1: connects to 6 and 7
-  { INF,  INF,    0,    1, INF, INF,    2, INF },    // Node 2: connects to 3 and 6
-  { INF,  INF,    1,    0, INF, INF,  INF,   2 },    // Node 3: connects to 2 and 7
+  {    0, INF,  INF,  INF,   1, INF,    2, INF },    // Node 0: connects to 4 and 6
+  { INF,    0,  INF,  INF, INF, INF,    2,   1 },    // Node 1: connects to 6 and 7
+  { INF,  INF,    0,    2, INF, INF,    1, INF },    // Node 2: connects to 3 and 6
+  { INF,  INF,    2,    0, INF, INF,  INF,   1 },    // Node 3: connects to 2 and 7
   {   2,  INF,  INF,  INF,   0, INF,  INF,   1 },    // Node 4: connects to 0 and 7
   { INF,  INF,  INF,  INF, INF,   0,  INF,   1 },    // Node 5: isolated
-  {   2,    1,    2,  INF, INF, INF,    0, INF },    // Node 6: junction (nodes 0,1,2)
-  { INF,    2,  INF,    2,   1,   1,  INF,   0 }     // Node 7: junction (nodes 1,3,4,5)
+  {   1,    2,    2,  INF, INF, INF,    0, INF },    // Node 6: junction (nodes 0,1,2)
+  { INF,    2,  INF,    1,   2,   1,  INF,   0 }     // Node 7: junction (nodes 1,3,4,5)
 };
 
 int path[MAX_PATH_SIZE];  // Final path with virtual nodes
@@ -676,6 +676,11 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
         driveMotor(170, 180);
       }
       //Updated final position and stop
+      Serial.print("Index: ");
+      Serial.println(index);
+      Serial.print("Path Length");
+      Serial.println(pathLength);
+
       driveMotor(0,0);
       sendPosition(5);
     }
