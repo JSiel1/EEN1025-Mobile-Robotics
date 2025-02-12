@@ -2,8 +2,8 @@
 * File Name:        [PathPlanningV3.ino]
 * Description:      []
 * Author:           [Group 14]
-* Created On:       [06/02/2025]
-* Last Modified On: [06/02/2025]
+* Created On:       [11/02/2025]
+* Last Modified On: [12/02/2025]
 * Version:          [3]
 * Last Changes:     [Changed the way detect node is handled. added bool atNode and check for node directly on sensor read
 Added extra cases for node handling at junction 7,
@@ -62,9 +62,6 @@ const int IR_PINS[] = {4, 7, 5, 15}; // 2 sensors on the left, 2 on the right
 const int sensorCount = 4;
 const int weights[] = {-2000, -1000, 1000, 2000};
 
-//DEBUG Version 
-//int sensorValues[sensorCount] = {200, 200, 200, 200};
-
 int sensorValues[sensorCount];
 
 //LED variables
@@ -87,14 +84,14 @@ const int nodeCount = 8; // Number of nodes
 // Adjacency Matrix
 int weightMatrix[nodeCount][nodeCount] = {
   //   0    1     2     3    4    5     6     7
-  {    0, INF,  INF,  INF,   1, INF,    1, INF },    // Node 0: connects to 4 and 6
-  { INF,    0,  INF,  INF, INF, INF,    1,   1 },    // Node 1: connects to 6 and 7
-  { INF,  INF,    0,    1, INF, INF,    1, INF },    // Node 2: connects to 3 and 6
-  { INF,  INF,    1,    0, INF, INF,  INF,   1 },    // Node 3: connects to 2 and 7
-  {   1,  INF,  INF,  INF,   0, INF,  INF,   1 },    // Node 4: connects to 0 and 7
+  {    0, INF,  INF,  INF,   1, INF,    3, INF },    // Node 0: connects to 4 and 6
+  { INF,    0,  INF,  INF, INF, INF,    1,   3 },    // Node 1: connects to 6 and 7
+  { INF,  INF,    0,    1, INF, INF,    2, INF },    // Node 2: connects to 3 and 6
+  { INF,  INF,    1,    0, INF, INF,  INF,   2 },    // Node 3: connects to 2 and 7
+  {   2,  INF,  INF,  INF,   0, INF,  INF,   1 },    // Node 4: connects to 0 and 7
   { INF,  INF,  INF,  INF, INF,   0,  INF,   1 },    // Node 5: isolated
-  {   1,    1,    1,  INF, INF, INF,    0, INF },    // Node 6: junction (nodes 0,1,2)
-  { INF,    1,  INF,    1,   1,   1,  INF,   0 }     // Node 7: junction (nodes 1,3,4,5)
+  {   2,    1,    2,  INF, INF, INF,    0, INF },    // Node 6: junction (nodes 0,1,2)
+  { INF,    2,  INF,    2,   1,   1,  INF,   0 }     // Node 7: junction (nodes 1,3,4,5)
 };
 
 int path[MAX_PATH_SIZE];  // Final path with virtual nodes
@@ -121,6 +118,7 @@ const char *teamID = "rhtr2655";      // Replace with your team's ID
 
 // Position
 bool forwardDirection = true;   //Start with forward direction
+int lastNode = -1;
 
 //Route re-writing
 String route = "";
@@ -178,7 +176,6 @@ void loop() {
 
     if (reRouteIndex >= tempPathLength - 1) {
       reRouteActive = false;
-      //pathIndex++;
       Serial.println("Re-route deactivated");
 
       if (storeWeight != -1) {
@@ -374,7 +371,7 @@ void readLineSensors(){
   int whiteCount = 0;
   // Read sensor values
   for (int i = 0; i < sensorCount; i++) {
-    //Blank for debug
+    // Read sensor Values and update array
     sensorValues[i] = analogRead(IR_PINS[i]);
     // Check for node if more than 3 sensors detect white line
     if (sensorValues[i] < whiteThreshold) {
@@ -383,7 +380,6 @@ void readLineSensors(){
   }
   if (whiteCount >= 3) {
     atNode = true;
-    // Debug
     Serial.println("Node detected");
   } else {
     atNode = false;
@@ -455,6 +451,13 @@ bool detectObstacle() {
     delay(5); // Small delay to allow readings to stabilize
   }
 
+
+  //totalValue = analogueRead(obstacleSensor);
+  //check for error
+  //if (totalValue < 500) {
+  //  totalValue = analogueRead(aobstacleSensor);
+  //}
+
   int avgSensorValue = totalValue / numSamples;
   int adjustedValue = 4095 - avgSensorValue;
 
@@ -477,7 +480,7 @@ bool detectObstacle() {
 int getDirection(int currentNode, int lastNode, int nextNode) {
   // At the starting position, assume going straight.
   if (lastNode == -1)
-    return 1;
+    return (forwardDirection) ? 1 : 0;
     
   // Count valid neighbors for the current node.
   int validCount = 0;
@@ -492,8 +495,7 @@ int getDirection(int currentNode, int lastNode, int nextNode) {
   if (validCount > 2)
     return getJunctionDirection(currentNode, lastNode, nextNode);
     
-  // For nodes with only two connections, if the next node equals the last node,
-  // that indicates a 180° turn.
+  // For nodes with only two connections, if the next node equals the last node, indicates a 180° turn.
   if (nextNode == lastNode)
     return 0;
     
@@ -527,7 +529,10 @@ int getJunctionDirection(int currentNode, int lastNode, int nextNode) {
   if (currentNode == 7) {
     if (lastNode == 1) {
       if (nextNode == 1) return 0; // back -> node 1
-      if (nextNode == 3) return 3; // right -> node 3
+      if (nextNode == 3) {
+        forwardDirection = !forwardDirection;
+        return 3; // right -> node 3
+      }
       if (nextNode == 4) return 2; // left -> node 4
       if (nextNode == 5) return 1; // striaght -> node 5
     } else if (lastNode == 4) {
@@ -561,7 +566,7 @@ void choosePath(int direction){
       break;
     case 1:                              // Straight
       Serial.println("Going Straight");
-      driveMotor(210, 200);
+      driveMotor(baseSpeed, baseSpeed);
       delay(forwardDelay);                             
       break;
     case 2:                              // Left
@@ -586,8 +591,7 @@ void choosePath(int direction){
 void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute) {
   int current = currentPath[index];
   int next = currentPath[index + 1];
-  int lastNode = (index == 0) ? -1 : currentPath[index - 1];
-
+  
   //print path for debug
   //Serial.print("processing Path: ");
   //for (int j = 0; j < pathLength; j++) {
@@ -598,9 +602,7 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
 
   // Obstacle detection & temporary re-routing.
   if (!isTempRoute && detectObstacle()) {
-    int adjustedCurrent = 0;
-    int adjustedNext = 0;
-
+    // Update position index if re-routing
     if (index > 0) {
       current = currentPath[index - 1];
       next = currentPath[index];
@@ -628,8 +630,7 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
   delay(500);         // Wait for 1 second before resuming
 
   if (index < pathLength - 1) {
-    int lastNode = (index == 0) ? -1 : currentPath[index - 1];
-    
+    // Only send position on nodes and not during re-routing    
     if (current != 6 && current != 7 && isTempRoute) {
       sendPosition(current);
     }
@@ -641,11 +642,10 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
     Serial.print(next);
     Serial.print(" : Turn code = ");
     Serial.println(turnCode);
-
-    delay(2000);
     
     // Perform action based on turn code
     choosePath(turnCode);
+    delay(1000);
     
     if (next == 5) {
       while (!detectObstacle()){
@@ -660,6 +660,7 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
     }
     // Increment the global path index to move to the next segment.
     index++;
+    lastNode = current;
   } else if (!isTempRoute) {
     // If we have reached the end of the path, indicate completion.
     Serial.println("Finished path.");
@@ -678,7 +679,7 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
     Serial.println(reRouteIndex);
     Serial.print("Path Length: ");
     Serial.println(tempPathLength);
-    delay(1000);
+    delay(2000);    //debug
   }
 }
 
@@ -826,7 +827,25 @@ void computePath() {
     for (int j = startIndex; j < tempPathLength; j++) {
       updatedPath[updatedPathLength++] = tempPath[j];
     }
+  }  
+
+  // check if next position is behind starting position
+  if (updatedPathLength > 1) {  // Ensure at least two positions exist
+    int start = updatedPath[0];
+    int next = updatedPath[1];
+
+    // Check if which node has higher weighting to indicate if starting in reverse direction
+    if (weightMatrix[next][start] != INF && weightMatrix[start][next] != INF) {
+      Serial.print(weightMatrix[next][start]);
+      Serial.print(" > ");
+      Serial.println(weightMatrix[start][next]);
+      if (weightMatrix[next][start] > weightMatrix[start][next]) {
+        forwardDirection = false;  // Flip direction
+        Serial.println("Starting Direction flipped");
+      }
+    }
   }
+
   Serial.print("Shortest path: ");
   for (int i = updatedPathLength - 1; i >= 0; i--) {
     Serial.print(updatedPath[i]);
@@ -872,8 +891,9 @@ bool reRoute(int current, int next) {
     Serial.print("Re-route: ");
     for (int j = 0; j < tempPathLength; j++) {
       Serial.print(tempPath[j]);
-      if (j >= 0 && j < pathLength) Serial.print(" -> ");
+      if (j < tempPathLength - 1) Serial.print(" -> ");
     }
+    Serial.println("");
 
     // Activate temporary routing mode
     reRouteActive = true;
