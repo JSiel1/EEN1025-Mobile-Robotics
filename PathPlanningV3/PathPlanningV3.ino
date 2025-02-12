@@ -33,22 +33,25 @@ Added parking; updated obstacle detection and check if current node = 5 ]
 // Motor Speeds
 int leftSpeed = 0;
 int rightSpeed = 0;
-const int baseSpeed = 160;   // Base speed for the motors (0–255) 200
-const int turnSpeed = 160;   // Turning Speed 190
+const int baseSpeed = 200;   // Base speed for the motors (0–255) 200
+const int turnSpeed = 190;   // Turning Speed 190
+
+int pivotSpeed = 255;  // Speed for sharp turns
+int middleCorrection = 50;   // Small correction if middle sensor detects line
 
 //Node detection settings
 const int forwardDelay = 60;   // Time to move across line slightly
 const unsigned long stopDelay = 50;     // Stopping Time at node
-const int rotationTime = 900;   // Time to turn 180 degrees
+const int rotationTime = 850;   // Time to turn 180 degrees
 const int turningTime = 450;    // Time to make a 90 degree turn 
 
 // PID parameters
-const float Kp = 0.35; // Proportional gain (0.35)
-const float Ki = 0.0;  // Integral gain (set to 0.00001 initially)
-const float Kd = 0.22;  // Derivative gain   (0.2)
+const float Kp = 0.6; // Proportional gain (0.35)
+const float Ki = 0.00;  // Integral gain (set to 0.00001 initially)
+const float Kd = 3.8;  // Derivative gain   (0.2)
 
 //Line detection Sensitivity
-const int whiteThreshold = 270; // Around 200 for white line. Greater means higher sensitivity
+const int whiteThreshold = 400; // Around 200 for white line. Greater means higher sensitivity
 const int blackThreshold = 2700; // Around 2700 for black surface
 const int obstacleThreshold = 2500;  //Obstacle Sensitivity. Higher means further sensing
 
@@ -58,9 +61,9 @@ const char *password = "manganese30sulphating"; // Replace with your Wi-Fi passw
 //const char *password = "overtechnicality7petrophilous";   // Secondary ESP32 
 
 // IR sensor pins (only outermost sensors are used)
-const int IR_PINS[] = {4, 7, 5, 15}; // 2 sensors on the left, 2 on the right
-const int sensorCount = 4;
-const int weights[] = {-2000, -1000, 1000, 2000};
+const int sensorCount = 5;
+const int IR_PINS[sensorCount] = {4, 7, 6, 5, 15}; // 2 sensors on the left, 2 on the right
+const int weights[sensorCount] = {-2000, -1000, 0, 1000, 2000};
 
 int sensorValues[sensorCount];
 
@@ -72,11 +75,8 @@ float colourBrightness = 0.5;
 //DRS variables
 const int PIDThreshold = 20;
 
-float Pvalue = 0;
-float Ivalue = 0;
-float Dvalue = 0;
 int previousError = 0;
-
+int integralError = 0;
 
 bool atNode = false;
 const int nodeCount = 8; // Number of nodes
@@ -307,62 +307,54 @@ String getResponseBody(String& response) {
 
 // Function for line following with PID
 void followLine() {
-  // Calculate the position of the line (weighted average method using outer sensors)
+  // Weighted average position
   int position = 0;
-  int total = 0;
-
+  int total    = 0;
   for (int i = 0; i < sensorCount; i++) {
     position += sensorValues[i] * weights[i];
-    total += sensorValues[i];
+    total    += sensorValues[i];
   }
 
-  // Avoid division by zero and calculate position
   if (total != 0) {
-    position /= total;
+    position /= total; // Normalize position
   } else {
-    position = 0;
+    position = 0; // If no line detected
   }
 
-  // Calculate error (target is position 0, the center)
-  int error = 0 - position;
-
-  // PID calculations
-  int P = error;
-  static int I = 0;
-  int D = error - previousError;
-
-  Pvalue = Kp * P;
-  I += error;
-  Ivalue = Ki * I;
-  Dvalue = Kd * D;
-
-  float PIDvalue = Pvalue + Ivalue + Dvalue;
+  // PID error
+  int error  = -position;
+  int dError = error - previousError;
   previousError = error;
+  integralError += error;
 
-  // Check outer sensors for sharp turns
+  float pidOut = (Kp * error) + (Ki * integralError) + (Kd * dError);
+
+  // Middle sensor correction
+  if (sensorValues[2] < whiteThreshold) { 
+    pidOut /= 2;  // Reduce corrections when middle sensor sees the line
+  }
+
+  // 
   if (sensorValues[0] < whiteThreshold) {
-    leftSpeed = 0;
-    rightSpeed = baseSpeed;
-  } else if (sensorValues[3] < whiteThreshold) {
-    leftSpeed = baseSpeed;
+   
+    leftSpeed  = 0;
+    rightSpeed = pivotSpeed;
+  }
+  else if (sensorValues[4] < whiteThreshold) {
+   
+    leftSpeed  = pivotSpeed;
     rightSpeed = 0;
-  } else {
-    leftSpeed = baseSpeed - PIDvalue;
-    rightSpeed = baseSpeed + PIDvalue;
+  }
+  else {
+    
+    leftSpeed  = baseSpeed - pidOut;
+    rightSpeed = baseSpeed + pidOut;
   }
 
-  //flip drs if PID threshold reached
-  if (PIDvalue > PIDThreshold){
-    switchDRS(1);
-  } else {
-    switchDRS(0);
-  }
+  leftSpeed  = constrain(leftSpeed, 0, 250);
+  rightSpeed = constrain(rightSpeed, 0, 250);
 
-  // Constrain motor speeds
-  leftSpeed = constrain(leftSpeed, 0, 255);
-  rightSpeed = constrain(rightSpeed, 0, 255);
 
-  // Drive motors
   driveMotor(leftSpeed, rightSpeed);
 }
 
@@ -374,11 +366,16 @@ void readLineSensors(){
     // Read sensor Values and update array
     sensorValues[i] = analogRead(IR_PINS[i]);
     // Check for node if more than 3 sensors detect white line
+    Serial.print(sensorValues[i]); // This prints the actual analog reading from the sensors
+    Serial.print("\t"); //tab over on screen
+    if(i==sensorCount-1) {
+      Serial.println(""); //carriage return
+    }
     if (sensorValues[i] < whiteThreshold) {
       whiteCount++;
     }
   }
-  if (whiteCount >= 3) {
+  if (whiteCount >= 4) {
     atNode = true;
     Serial.println("Node detected");
   } else {
@@ -392,21 +389,22 @@ void readLineSensors(){
 
 // Motor drive function
 void driveMotor(int left, int right) {
-  if (left > 0) {
+  if (left >= 0) {
     digitalWrite(motor1Phase, LOW);
-    analogWrite(motor1PWM, left);
   } else {
     digitalWrite(motor1Phase, HIGH);
-    analogWrite(motor1PWM, -left);
+    left = -left;
   }
 
   if (right > 0) {
     digitalWrite(motor2Phase, LOW);
-    analogWrite(motor2PWM, right);
   } else {
     digitalWrite(motor2Phase, HIGH);
-    analogWrite(motor2PWM, -right);
+    right = -right;
   }
+
+  analogWrite(motor1PWM, left);
+  analogWrite(motor2PWM, right);
 }
 
 // function to turn left
@@ -443,7 +441,7 @@ void right() {
 // Detect an obstacle in front of the sensor
 bool detectObstacle() {
   int totalValue = 0;
-  int numSamples = 2;
+  int numSamples = 3;
 
   // Take multiple readings and compute the average
   for (int i = 0; i < numSamples; i++) {
@@ -631,7 +629,7 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
 
   if (index < pathLength - 1) {
     // Only send position on nodes and not during re-routing    
-    if (current != 6 && current != 7 && isTempRoute) {
+    if (current != 6 && current != 7 && !isTempRoute) {
       sendPosition(current);
     }
 
@@ -645,7 +643,7 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
     
     // Perform action based on turn code
     choosePath(turnCode);
-    delay(1000);
+    delay(500);
     
     if (next == 5) {
       while (!detectObstacle()){
