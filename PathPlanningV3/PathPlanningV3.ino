@@ -33,17 +33,17 @@ Added parking; updated obstacle detection and check if current node = 5 ]
 // Motor Speeds
 int leftSpeed = 0;
 int rightSpeed = 0;
-const int baseSpeed = 200;   // Base speed for the motors (0–255) 200
+const int baseSpeed = 160;   // Base speed for the motors (0–255) 200
 const int turnSpeed = 190;   // Turning Speed 190
 
-int pivotSpeed = 255;  // Speed for sharp turns
+int pivotSpeed = 230;  // Speed for sharp turns (255)
 int middleCorrection = 50;   // Small correction if middle sensor detects line
 
 //Node detection settings
 const int forwardDelay = 80;   // Time to move across line slightly
 const unsigned long stopDelay = 50;     // Stopping Time at node
 const int rotationTime = 850;   // Time to turn 180 degrees
-const int turningTime = 450;    // Time to make a 90 degree turn 
+const int turningTime = 400;    // Time to make a 90 degree turn 
 
 // PID parameters
 const float Kp = 0.7; // Proportional gain (0.65)
@@ -74,7 +74,7 @@ int colorIndex = 0;
 float colourBrightness = 0.5;
 
 //DRS variables
-const int PIDThreshold = 40;
+const int PIDThreshold = 70;
 
 int previousError = 0;
 int integralError = 0;
@@ -355,7 +355,7 @@ void followLine() {
   leftSpeed  = constrain(leftSpeed, 0, 250);
   rightSpeed = constrain(rightSpeed, 0, 250);
 
-  if (pidOut > PIDThreshold) {
+  if (pidOut > 10) {
     switchDRS(1);
   } else {
     switchDRS(0);
@@ -643,12 +643,13 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
     // Perform action based on turn code
     choosePath(turnCode);
     
+    //Parking
     if (next == 5) {
       while (!detectObstacle()){
         Serial.println("Waiting for wall");
 
         //drive straight at wall
-        driveMotor(170, 185);
+        driveMotor(180, 170);
       }
       //Updated final position and stop
       driveMotor(0,0);
