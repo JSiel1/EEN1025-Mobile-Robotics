@@ -33,22 +33,23 @@ Added parking; updated obstacle detection and check if current node = 5 ]
 // Motor Speeds
 int leftSpeed = 0;
 int rightSpeed = 0;
-const int baseSpeed = 160;   // Base speed for the motors (0–255) 200
-const int turnSpeed = 190;   // Turning Speed 190
+const int baseSpeed = 120;   // Base speed for the motors (0–255) 200
+const int turnSpeed = 110;   // Turning Speed for 90 degree turns 190 basseSpeed - 10
 
-int pivotSpeed = 230;  // Speed for sharp turns (255)
+int pivotSpeed = 140;  // Speed for outside sensor turns (255) baseSpeed + 20 
 int middleCorrection = 50;   // Small correction if middle sensor detects line
+int constrainSpeed = 160; 
 
 //Node detection settings
 const int forwardDelay = 80;   // Time to move across line slightly
 const unsigned long stopDelay = 50;     // Stopping Time at node
-const int rotationTime = 850;   // Time to turn 180 degrees
+const int rotationTime = 800;   // Time to turn 180 degrees
 const int turningTime = 400;    // Time to make a 90 degree turn 
 
 // PID parameters
-const float Kp = 0.7; // Proportional gain (0.65)
+const float Kp = 0.5; // Proportional gain (0.7)
 const float Ki = 0.00;  // Integral gain (set to 0.00001 initially)
-const float Kd = 3.8;  // Derivative gain   (3.8)
+const float Kd = 4.25;  // Derivative gain   (4.25)
 
 //Line detection Sensitivity
 const int whiteThreshold = 400; // Around 200 for white line. Greater means higher sensitivity
@@ -64,7 +65,7 @@ const char *password = "manganese30sulphating"; // Replace with your Wi-Fi passw
 // IR sensor pins (only outermost sensors are used)
 const int sensorCount = 5;
 const int IR_PINS[sensorCount] = {4, 7, 6, 5, 15}; // 2 sensors on the left, 2 on the right
-const int weights[sensorCount] = {-2000, -1000, 0, 1000, 2000};
+const int weights[sensorCount] = {-2000, -1240, 0, 1000, 2000};
 
 int sensorValues[sensorCount];
 
@@ -75,6 +76,7 @@ float colourBrightness = 0.5;
 
 //DRS variables
 const int PIDThreshold = 70;
+bool drsState = false;
 
 int previousError = 0;
 int integralError = 0;
@@ -335,14 +337,12 @@ void followLine() {
     pidOut /= 2;  // Reduce corrections when middle sensor sees the line
   }
 
-  // 
+  // if outer sensor detected
   if (sensorValues[0] < whiteThreshold) {
-   
     leftSpeed  = 0;
     rightSpeed = pivotSpeed;
   }
   else if (sensorValues[4] < whiteThreshold) {
-   
     leftSpeed  = pivotSpeed;
     rightSpeed = 0;
   }
@@ -352,15 +352,12 @@ void followLine() {
     rightSpeed = baseSpeed + pidOut;
   }
 
-  leftSpeed  = constrain(leftSpeed, 0, 250);
-  rightSpeed = constrain(rightSpeed, 0, 250);
+  leftSpeed  = constrain(leftSpeed, 0, constrainSpeed);
+  rightSpeed = constrain(rightSpeed, 0, constrainSpeed);
 
-  if (pidOut > 10) {
-    switchDRS(1);
-  } else {
-    switchDRS(0);
-  }
-
+  Serial.print(leftSpeed);
+  Serial.print("\t");
+  Serial.println(rightSpeed);
 
   driveMotor(leftSpeed, rightSpeed);
 }
@@ -377,6 +374,7 @@ void readLineSensors(){
       whiteCount++;
     }
   }
+
   if (whiteCount >= 3) {
     atNode = true;
     Serial.println("Node detected");
@@ -461,7 +459,6 @@ bool detectObstacle() {
   int avgSensorValue = totalValue / numSamples;
   int adjustedValue = 4095 - avgSensorValue;
 
-  Serial.println(adjustedValue);
 
   // Check distance to obstacle
   if (adjustedValue < obstacleThreshold && adjustedValue > 1500) {
@@ -649,7 +646,7 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
         Serial.println("Waiting for wall");
 
         //drive straight at wall
-        driveMotor(180, 170);
+        driveMotor(175, 170);
       }
       //Updated final position and stop
       driveMotor(0,0);

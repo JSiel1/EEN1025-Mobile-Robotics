@@ -23,12 +23,14 @@ void readLineSensors(){
   // put your main code here, to run repeatedly:
   for (int i = 0; i<sensorCount; i++) {
     sensorValues[i] = analogRead(IR_PINS[i]);
+  } 
+
+  for (int i = 0; i < sensorCount; i++) {
     Serial.print(sensorValues[i]); // This prints the actual analog reading from the sensors
     Serial.print("\t"); //tab over on screen
     if(i==3) {
       Serial.println(""); //carriage return
       delay(200); // display new set of readings every 600mS
     }
-  } 
-
+  }
 }
