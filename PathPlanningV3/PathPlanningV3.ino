@@ -9,64 +9,24 @@
 Added extra cases for node handling at junction 7,
 Added parking; updated obstacle detection and check if current node = 5 ]
 *************************************************/
-
-#include <WiFi.h>
-
-// Buffer Size
-#define BUFSIZE 512
-#define MAX_PATH_SIZE 20
-#define INF 9999
-
-// Motor pins
-#define motor1PWM 37  // Left motor enable (PWM)
-#define motor1Phase 38  // Left motor phase
-#define motor2PWM 35  // Right motor enable (PWM)
-#define motor2Phase 36  // Right motor phase
-#define obstacleSensor 1    //obbstacle detection sensor
+#include "PathPlanning.h"
+#include "serverCommunication.h"
+#include "motorControl.h"
+#include "settings.h"
 
 #define redPin 10
 #define greenPin 11
 #define bluePin 12
-
 #define DRSPin 9
-
-// Motor Speeds
-int leftSpeed = 0;
-int rightSpeed = 0;
-const int baseSpeed = 120;   // Base speed for the motors (0–255) 200
-const int turnSpeed = 110;   // Turning Speed for 90 degree turns 190 basseSpeed - 10
-
-int pivotSpeed = 140;  // Speed for outside sensor turns (255) baseSpeed + 20 
-int middleCorrection = 50;   // Small correction if middle sensor detects line
-int constrainSpeed = 170; 
-
-// PID parameters
-const float Kp = 0.5; // Proportional gain (0.7)
-const float Ki = 0.00;  // Integral gain (set to 0.00001 initially)
-const float Kd = 4.25;  // Derivative gain   (4.25)
-
-//Node detection settings
-const int forwardDelay = 80;   // Time to move across line slightly
-const unsigned long stopDelay = 50;     // Stopping Time at node
-const int rotationTime = 800;   // Time to turn 180 degrees
-const int turningTime = 400;    // Time to make a 90 degree turn 
+#define obstacleSensor 1    //obbstacle detection sensor
 
 //Line detection Sensitivity
 const int whiteThreshold = 400; // Around 200 for white line. Greater means higher sensitivity
-const int obstacleThreshold = 2500;  //Obstacle Sensitivity. Higher means further sensing
-
-// Wi-Fi credentials
-const char *ssid = "iot";                // Replace with your Wi-Fi SSID
-const char *password = "manganese30sulphating"; // Replace with your Wi-Fi password
-//const char *password = "overtechnicality7petrophilous";   // Secondary ESP32 
-
 
 // IR sensor pins (only outermost sensors are used)
 const int sensorCount = 5;
 const int IR_PINS[sensorCount] = {4, 7, 6, 5, 15}; // 2 sensors on the left, 2 on the right
-const int weights[sensorCount] = {-2000, -1240, 0, 1000, 2000};
-
-int sensorValues[sensorCount];
+int sensorValues[5];
 
 //LED variables
 unsigned long previousMillis = 0;
@@ -75,63 +35,9 @@ float colourBrightness = 0.5;
 
 //DRS variables
 unsigned long drsStartTime = 0;
-const int drsThreshold = 70;
-int drsDelay = 500;
-bool drsState = false;
+bool drsActive = false;
 bool drsPending = false;
 
-
-
-int previousError = 0;
-int integralError = 0;
-
-bool atNode = false;
-const int nodeCount = 8; // Number of nodes
-
-// Adjacency Matrix
-int weightMatrix[nodeCount][nodeCount] = {
-  //   0    1     2     3    4    5     6     7
-  {    0, INF,  INF,  INF,   1, INF,    2, INF },    // Node 0: connects to 4 and 6
-  { INF,    0,  INF,  INF, INF, INF,    2,   1 },    // Node 1: connects to 6 and 7
-  { INF,  INF,    0,    2, INF, INF,    1, INF },    // Node 2: connects to 3 and 6
-  { INF,  INF,    2,    0, INF, INF,  INF,   1 },    // Node 3: connects to 2 and 7
-  {   2,  INF,  INF,  INF,   0, INF,  INF,   1 },    // Node 4: connects to 0 and 7
-  { INF,  INF,  INF,  INF, INF,   0,  INF,   1 },    // Node 5: isolated
-  {   1,    2,    2,  INF, INF, INF,    0, INF },    // Node 6: junction (nodes 0,1,2)
-  { INF,    2,  INF,    1,   2,   1,  INF,   0 }     // Node 7: junction (nodes 1,3,4,5)
-};
-
-int path[MAX_PATH_SIZE];  // Final path with virtual nodes
-int pathLength = 0;  // Size of the updated path
-int updatedPath[MAX_PATH_SIZE];
-int updatedPathLength = 0;
-
-int pathIndex = 0;
-
-// Obstacle re-routing variables
-int tempPath[MAX_PATH_SIZE];
-int tempPathLength = 0;
-int reRouteIndex = 0;
-bool reRouteActive = false;
-
-int storeWeight = -1;
-int storeCurrent = -1;
-int storeNext = -1;
-
-// Server details
-const char *serverIP = "3.250.38.184"; // Server IP address
-const int serverPort = 8000;          // Server port
-const char *teamID = "rhtr2655";      // Replace with your team's ID
-
-// Position
-bool forwardDirection = true;   //Start with forward direction
-int lastNode = -1;
-
-//Route re-writing
-String route = "";
-
-// Wifi class
-WiFiClient client;
 
 void setup() {
   // Set motor pins as output
@@ -199,270 +105,9 @@ void loop() {
   followLine();
 }
 
-//-------------------------------------------------------------
-//-----------------Cloud Server Communication------------------
-//-------------------------------------------------------------
-
-// Connect to wifi
-void connectToWiFi() {
-  Serial.println("Connecting to Wi-Fi...");
-  WiFi.begin(ssid, password);
-
-  // Wait for the connection
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWi-Fi connected.");
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.localIP());
-}
-
-// Function to send current position 
-void sendPosition(int position) {
-  if (!client.connect(serverIP, serverPort)) {
-    Serial.println("Connection to server failed!");
-    return;
-  }
-
-  String postBody = "position=" + String(position);
-
-  // Send HTTP POST request
-  client.println("POST /api/arrived/" + String(teamID) + " HTTP/1.1");
-  client.println("Content-Type: application/x-www-form-urlencoded");
-  client.print("Content-Length: ");
-  client.println(postBody.length());
-  client.println(); // End headers
-  client.println(postBody); // Send body
-
-  // Wait for a response but only for a short time (non-blocking)
-  unsigned long timeout = millis() + stopDelay;  // 100ms max wait time
-  while (millis() < timeout) {
-    if (client.available()) {
-      String response = client.readString();  // Read response
-      Serial.println("Full Server Response:");
-      Serial.println(response);
-      break; // Exit loop after reading response
-    }
-  }
-
-  client.stop(); // Close connection
-
-}
-
-// Function to read Route
-String getRoute() {
-  // Connect to server
-  if (!client.connect(serverIP, serverPort)) {
-    Serial.println("Connection to server failed!");
-  return "-1";
-  }
-
-  //Make GET request 
-  client.println("GET /api/getRoute/" + String(teamID) + " HTTP/1.1");
-  client.println("Connection: close");
-  client.println();
-  
-  String response  = "";
-
-  // Save response when available
-  while (client.connected() || client.available()) {
-    if (client.available()) {
-      response = client.readString();
-      Serial.println(response);
-      break;
-    }
-  }
-
-  //Get error code
-  int statusCode = getStatusCode(response);
-  if (statusCode != 200) {
-      Serial.println("Error: Failed to retrieve next position. HTTP Status: " + String(statusCode));
-      return "-1";
-  }
-
-  client.stop();          // Stop connection
-  return getResponseBody(response);     // Return full Path
-}
-
-// Function to read the HTTP response
-String readResponse() {
-  char buffer[BUFSIZE];
-  memset(buffer, 0, BUFSIZE);
-  client.readBytes(buffer, BUFSIZE);
-  String response(buffer);
-  return response;
-}
-
-// Function to get the status code from the response
-int getStatusCode(String& response) {
-  String code = response.substring(9, 12);
-  return code.toInt();
-}
-
-// Function to get the body from the response
-String getResponseBody(String& response) {
-  int split = response.indexOf("\r\n\r\n");
-  String body = response.substring(split + 4, response.length());
-  body.trim();
-  return body;
-}
 
 //-------------------------------------------------------------
-//-----------------Line Following Logic------------------------
-//-------------------------------------------------------------
-
-// Function for line following with PID
-void followLine() {
-  // Weighted average position
-  int position = 0;
-  int total    = 0;
-  for (int i = 0; i < sensorCount; i++) {
-    position += sensorValues[i] * weights[i];
-    total    += sensorValues[i];
-  }
-
-  if (total != 0) {
-    position /= total; // Normalize position
-  } else {
-    position = 0; // If no line detected
-  }
-
-  // PID error
-  int error  = -position;
-  int derivativeError = error - previousError;
-  previousError = error;
-  integralError += error;
-
-  float pidValue = (Kp * error) + (Ki * integralError) + (Kd * derivativeError);
-
-  // Middle sensor correction
-  if (sensorValues[2] < whiteThreshold) { 
-    pidValue /= 2;  // Reduce corrections when middle sensor sees the line
-  }
-
-  // if outer sensor detected
-  if (sensorValues[0] < whiteThreshold) {
-    leftSpeed  = 0;
-    rightSpeed = pivotSpeed;
-  }
-  else if (sensorValues[4] < whiteThreshold) {
-    leftSpeed  = pivotSpeed;
-    rightSpeed = 0;
-  }
-  else {
-    
-    leftSpeed  = baseSpeed - pidValue;
-    rightSpeed = baseSpeed + pidValue;
-  }
-
-  leftSpeed  = constrain(leftSpeed, 0, constrainSpeed);
-  rightSpeed = constrain(rightSpeed, 0, constrainSpeed);
-
-  // DRS CALCULATIONS
-  float avgSpeed = (leftSpeed + rightSpeed) / 2;  // Compute average speed
-
-  // Detect speed drop (possible turn)
-  if (!drsActive && !drsPending && avgSpeed < drsThreshold) {
-    drsPending = true;  
-    drsStartTime = millis();  // Start delay timer
-  }
-
-  // Activate DRS after delay
-  if (drsPending && millis() >= drsDelay) {
-    switchDRS(true);
-    drsActive = true;
-    drsPending = false;
-  }
-
-  // Deactivate DRS when speed increases (back on a straight)
-  if (drsActive && avgSpeed > drsThreshold + 20) {
-    switchDRS(false);
-    drsActive = false;
-  }
-
-
-  Serial.print(leftSpeed);
-  Serial.print("\t");
-  Serial.println(rightSpeed);
-
-  driveMotor(leftSpeed, rightSpeed);
-}
-
-// Read IR sensor values and update array
-void readLineSensors(){
-  int whiteCount = 0;
-  // Read sensor values
-  for (int i = 0; i < sensorCount; i++) {
-    // Read sensor Values and update array
-    sensorValues[i] = analogRead(IR_PINS[i]);
-    // Check for node if more than 3 sensors detect white line
-    if (sensorValues[i] < whiteThreshold) {
-      whiteCount++;
-    }
-  }
-
-  if (whiteCount >= 3) {
-    atNode = true;
-    Serial.println("Node detected");
-  } else {
-    atNode = false;
-  }
-}
-
-//-------------------------------------------------------------
-//-----------------Motor Control Logic-------------------------
-//-------------------------------------------------------------
-
-// Motor drive function
-void driveMotor(int left, int right) {
-  if (left >= 0) {
-    digitalWrite(motor1Phase, LOW);
-  } else {
-    digitalWrite(motor1Phase, HIGH);
-    left = -left;
-  }
-
-  if (right > 0) {
-    digitalWrite(motor2Phase, LOW);
-  } else {
-    digitalWrite(motor2Phase, HIGH);
-    right = -right;
-  }
-
-  analogWrite(motor1PWM, left);
-  analogWrite(motor2PWM, right);
-}
-
-// function to turn left
-void left() {
-  driveMotor(turnSpeed, -turnSpeed);    // Rotate in place
-  delay(turningTime);                   // Adjust delay for a 180-degree turn
-  driveMotor(80, 80);
-  delay(forwardDelay);
-  return;
-}
-
-// function to do a 180 degree turn
-void reverse() {
-  driveMotor(turnSpeed, -turnSpeed);
-  delay(rotationTime);
-  driveMotor(80, 80);
-  delay(forwardDelay);
-}
-
-// function to turn right
-void right() {
-  driveMotor(-turnSpeed, turnSpeed);    // Rotate in place
-  delay(turningTime);                   // Adjust delay for a 180-degree turn
-  driveMotor(80, 80);
-  delay(forwardDelay);
-  return;
-
-}
-
-//-------------------------------------------------------------
-//---------------Obstacle Detection Logic----------------------
+//---------------Sensor Detection Logic----------------------
 //-------------------------------------------------------------
 
 // Detect an obstacle in front of the sensor
@@ -495,6 +140,26 @@ bool detectObstacle() {
   return false;
 }
 
+// Read IR sensor values and update array
+void readLineSensors(){
+  int whiteCount = 0;
+  // Read sensor values
+  for (int i = 0; i < sensorCount; i++) {
+    // Read sensor Values and update array
+    sensorValues[i] = analogRead(IR_PINS[i]);
+    // Check for node if more than 3 sensors detect white line
+    if (sensorValues[i] < whiteThreshold) {
+      whiteCount++;
+    }
+  }
+
+  if (whiteCount >= 3) {
+    atNode = true;
+    Serial.println("Node detected");
+  } else {
+    atNode = false;
+  }
+}
 
 //-------------------------------------------------------------
 //----------------String-To-Array-Conversion-------------------
@@ -543,7 +208,6 @@ void adjustPath() {
   }
   Serial.println();
 }
-
 
 //-------------------------------------------------------------
 //---------------------------LED-------------------------------

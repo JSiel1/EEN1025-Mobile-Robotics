@@ -1,24 +1,43 @@
 #ifndef PathPlanning_H
 #define PathPlanning_H
 
-extern bool forwardDirection;
-extern bool atNode;
-extern int nodeCount;
-extern int baseSpeed;
-extern int forwardDelay;
-extern int lastNode;
+#define MAX_PATH_SIZE 20
+#define INF 9999
 
-extern int tempPathLength;
-extern int reRouteIndex;
-extern int path[];
-extern int pathLength;
-extern int updatedPath[];
+// External Functions
+extern bool detectObstacle();
+extern void setColour(int r, int g, int b);
+extern void driveMotor(int left, int right);
+
+extern void left();
+extern void right();
+extern void reverse();
+
+// File specific Variables
+extern bool atNode;
+extern bool forwardDirection;   //Start with forward direction
+const int nodeCount = 8; // Number of nodes
+
+// Adjacency Matrix
+extern int weightMatrix[nodeCount][nodeCount];
+extern int path[MAX_PATH_SIZE];  // Final path with virtual nodes
+extern int pathLength;  // Size of the updated path
+extern int updatedPath[MAX_PATH_SIZE];
 extern int updatedPathLength;
 
-extern bool detectObstacle();
-extern void sendPosition();
-extern void setColour();
+extern int pathIndex;
+extern int lastNode;
 
+// Obstacle re-routing variables
+extern int tempPath[MAX_PATH_SIZE];
+extern int tempPathLength;
+extern int reRouteIndex;
+extern bool reRouteActive;
+ 
+// Re-routing variables
+extern int storeWeight;
+extern int storeCurrent;
+extern int storeNext;
 
 
 // Get next direction

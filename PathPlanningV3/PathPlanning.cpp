@@ -1,4 +1,45 @@
+#include <Arduino.h>
 #include "PathPlanning.h"
+#include "serverCommunication.h"
+#include "motorControl.h"
+#include "settings.h"
+
+// PathPlanning specific variables.
+bool atNode = false;
+bool forwardDirection = true;   //Start with forward direction
+
+// Adjacency Matrix
+int weightMatrix[8][8] = {
+  //   0    1     2     3    4    5     6     7
+  {    0, INF,  INF,  INF,   1, INF,    2, INF },    // Node 0: connects to 4 and 6
+  { INF,    0,  INF,  INF, INF, INF,    2,   1 },    // Node 1: connects to 6 and 7
+  { INF,  INF,    0,    2, INF, INF,    1, INF },    // Node 2: connects to 3 and 6
+  { INF,  INF,    2,    0, INF, INF,  INF,   1 },    // Node 3: connects to 2 and 7
+  {   2,  INF,  INF,  INF,   0, INF,  INF,   1 },    // Node 4: connects to 0 and 7
+  { INF,  INF,  INF,  INF, INF,   0,  INF,   1 },    // Node 5: isolated
+  {   1,    2,    2,  INF, INF, INF,    0, INF },    // Node 6: junction (nodes 0,1,2)
+  { INF,    2,  INF,    1,   2,   1,  INF,   0 }     // Node 7: junction (nodes 1,3,4,5)
+};
+
+int path[MAX_PATH_SIZE];  // Final path with virtual nodes
+int pathLength = 0;  // Size of the updated path
+int updatedPath[MAX_PATH_SIZE];
+int updatedPathLength = 0;
+
+int pathIndex = 0;
+int lastNode = -1;
+
+// Obstacle re-routing variables
+int tempPath[MAX_PATH_SIZE];
+int tempPathLength = 0;
+int reRouteIndex = 0;
+bool reRouteActive = false;
+
+// Re-routing variables
+int storeWeight = -1;
+int storeCurrent = -1;
+int storeNext = -1;
+
 
 //-------------------------------------------------------------
 //-----------------Path Following Logic------------------------
