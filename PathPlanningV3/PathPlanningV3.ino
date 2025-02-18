@@ -64,7 +64,6 @@ void setup() {
   
   // Start serial communication
   Serial.begin(115200);
-
   
   connectToWiFi();        // Connect to Wi-Fi
   route = getRoute();     // Obtain path
