@@ -11,10 +11,6 @@ static int integralError = 0;
 unsigned long straightStartTime = 0;
 bool isOnStraight = false;
 
-// Separate PID values for straight paths
-float straightKp = 1; // Lower Kp to reduce oscillation
-float straightKd = 15; // Lower Kd for smoother correction
-
 //-------------------------------------------------------------
 //-----------------Line Following Logic------------------------
 //-------------------------------------------------------------
@@ -42,7 +38,7 @@ void followLine() {
   // Check if on a straight line
   bool enteringStraight = (current == 0 && next == 4) || (current == 4 && next == 0) || (current == 2 && next == 3) || (current == 3 && next == 2);
   
-  if (enteringStraight) {
+  if (enteringStraight && atNode) {
     // Enter straight mode
     isOnStraight = true;
     straightStartTime = millis(); // Record entry time
@@ -93,9 +89,13 @@ void followLine() {
     }
   }
 
-
-  leftSpeed  = constrain(leftSpeed, 0, constrainSpeed);
-  rightSpeed = constrain(rightSpeed, 0, constrainSpeed);
+  if (isOnStraight) {
+    leftSpeed  = constrain(leftSpeed, 0, straightSpeed);
+    rightSpeed = constrain(rightSpeed, 0, straightSpeed);
+  } else {
+    leftSpeed  = constrain(leftSpeed, 0, constrainSpeed);
+    rightSpeed = constrain(rightSpeed, 0, constrainSpeed);
+  }
 
   Serial.print(leftSpeed);
   Serial.print("\t");

@@ -61,6 +61,9 @@ void setup() {
   initialiseDisplay();
 
   driveMotor(0,0);
+
+  displayBattery();
+
   // initialise LEDS
   setColour(255, 0, 0);
   switchDRS(1);
