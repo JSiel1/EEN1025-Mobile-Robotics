@@ -8,6 +8,13 @@ int rightSpeed = 0;
 static int previousError = 0;
 static int integralError = 0;
 
+unsigned long straightStartTime = 0;
+bool isOnStraight = false;
+
+// Separate PID values for straight paths
+float straightKp = 1; // Lower Kp to reduce oscillation
+float straightKd = 15; // Lower Kd for smoother correction
+
 //-------------------------------------------------------------
 //-----------------Line Following Logic------------------------
 //-------------------------------------------------------------
@@ -28,13 +35,39 @@ void followLine() {
     position = 0; // If no line detected
   }
 
+   // Default PID values
+  float currentKp = Kp;
+  float currentKd = Kd;
+
+  // Check if on a straight line
+  bool enteringStraight = (current == 0 && next == 4) || (current == 4 && next == 0) || (current == 2 && next == 3) || (current == 3 && next == 2);
+  
+  if (enteringStraight) {
+    // Enter straight mode
+    isOnStraight = true;
+    straightStartTime = millis(); // Record entry time
+  }
+
+  if (isOnStraight) {
+    currentKp = straightKp;
+    currentKd = straightKd;
+
+    Serial.println("on Straight");
+
+    // Stay in straight mode for a short time
+    if (millis() - straightStartTime > straightDelay) { // Adjust delay if needed
+      isOnStraight = false;
+    }
+  }
+
+
   // PID error
   int error  = -position;
   int derivativeError = error - previousError;
   previousError = error;
   integralError += error;
 
-  float pidValue = (Kp * error) + (Ki * integralError) + (Kd * derivativeError);
+  float pidValue = (currentKp * error) + (Ki * integralError) + (currentKd * derivativeError);
 
   // Middle sensor correction
   if (sensorValues[2] < whiteThreshold) { 
@@ -51,42 +84,44 @@ void followLine() {
     rightSpeed = 0;
   }
   else {
-    
-    leftSpeed  = baseSpeed - pidValue;
-    rightSpeed = baseSpeed + pidValue;
+    if (isOnStraight) {
+      leftSpeed  = straightSpeed - pidValue;
+      rightSpeed = straightSpeed + pidValue;
+    } else {
+      leftSpeed  = baseSpeed - pidValue;
+      rightSpeed = baseSpeed + pidValue;
+    }
   }
 
 
   leftSpeed  = constrain(leftSpeed, 0, constrainSpeed);
   rightSpeed = constrain(rightSpeed, 0, constrainSpeed);
 
+  Serial.print(leftSpeed);
+  Serial.print("\t");
+  Serial.println(rightSpeed);
+
   //// DRS CALCULATIONS
   //float avgSpeed = (leftSpeed + rightSpeed) / 2;  // Compute average speed
-//
+
   //// Detect speed drop (possible turn)
   //if (!drsActive && !drsPending && avgSpeed < drsThreshold) {
   //  drsPending = true;  
   //  drsStartTime = millis();  // Start delay timer
   //}
-//
+
   //// Activate DRS after delay
   //if (drsPending && millis() >= drsDelay) {
   //  switchDRS(true);
   //  drsActive = true;
   //  drsPending = false;
   //}
-//
+
   //// Deactivate DRS when speed increases (back on a straight)
   //if (drsActive && avgSpeed > drsThreshold + 20) {
   //  switchDRS(false);
   //  drsActive = false;
   //}
-
-
-  Serial.print(leftSpeed);
-  Serial.print("\t");
-  Serial.println(rightSpeed);
-
   driveMotor(leftSpeed, rightSpeed);
 }
 

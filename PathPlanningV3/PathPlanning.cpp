@@ -29,6 +29,9 @@ int updatedPathLength = 0;
 int pathIndex = 0;
 int lastNode = -1;
 
+int current = -1;
+int next = -1;
+
 // Obstacle re-routing variables
 int tempPath[MAX_PATH_SIZE];
 int tempPathLength = 0;
@@ -149,8 +152,8 @@ void choosePath(int direction){
 
 // Process path path array and keep track of position 
 void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute) {
-  int current = currentPath[index];
-  int next = currentPath[index + 1];
+  current = currentPath[index];
+  next = currentPath[index + 1];
   
   // Obstacle detection & temporary re-routing.
   if (!isTempRoute && detectObstacle()) {

@@ -4,6 +4,7 @@
 // Motor Speeds
 constexpr int baseSpeed = 140;   // Base speed for the motors (0–255) 120
 constexpr int turnSpeed = 110;   // Turning Speed for 90 degree turns 
+constexpr int straightSpeed = 150;
 
 constexpr int pivotSpeed = 80;  // Speed for outside sensor turns 90
 constexpr int constrainSpeed = 140; // Max motor speed 140
@@ -21,6 +22,7 @@ constexpr int forwardDelay = 80;   // Time to move across line slightly
 constexpr unsigned long stopDelay = 50;     // Stopping Time at node
 constexpr int rotationTime = 600;   // Time to turn 180 degrees
 constexpr int turningTime = 400;    // Time to make a 90 degree turn 
+constexpr int straightDelay = 500;
 
 
 // Wi-Fi credentials

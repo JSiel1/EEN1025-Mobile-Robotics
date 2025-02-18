@@ -28,6 +28,9 @@ extern int updatedPathLength;
 extern int pathIndex;
 extern int lastNode;
 
+extern int current;
+extern int next;
+
 // Obstacle re-routing variables
 extern int tempPath[MAX_PATH_SIZE];
 extern int tempPathLength;
