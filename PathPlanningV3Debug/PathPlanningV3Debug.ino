@@ -53,12 +53,9 @@ const int blackThreshold = 2700; // Around 2700 for black surface
 const int obstacleThreshold = 2500;  //Obstacle Sensitivity. Higher means further sensing
 
 // Wi-Fi credentials
-//const char *ssid = "iot";                // Replace with your Wi-Fi SSID
+const char *ssid = "iot";                // Replace with your Wi-Fi SSID
 //const char *password = "manganese30sulphating"; // Replace with your Wi-Fi password
-//const char *password = "overtechnicality7petrophilous";   // Secondary ESP32 
-
-const char *ssid = "VM4036270";
-const char *password = "ZCpdaz5pkvev";
+const char *password = "overtechnicality7petrophilous";   // Secondary ESP32 
 
 
 // IR sensor pins (only outermost sensors are used)
@@ -488,23 +485,28 @@ bool detectObstacle() {
 
 // Get next direction
 int getDirection(int currentNode, int lastNode, int nextNode) {
+  Serial.println(lastNode);
   // At the starting position, assume going straight.
   if (lastNode == -1) {
     return (forwardDirection ? 1 : 0);
   }
     
-  // Count valid neighbors for the current node.
-  int validCount = 0;
-  for (int j = 0; j < nodeCount; j++) {
-    if (j == currentNode)
-      continue;
-    if (weightMatrix[currentNode][j] != INF)
-      validCount++;
+  if (currentNode == 6 || currentNode == 7) {
+    return getJunctionDirection(currentNode, lastNode, nextNode);
   }
+
+  //// Count valid neighbors for the current node.
+  //int validCount = 0;
+  //for (int j = 0; j < nodeCount; j++) {
+  //  if (j == currentNode)
+  //    continue;
+  //  if (weightMatrix[currentNode][j] != INF)
+  //    validCount++;
+  //}
   
   // If more than two connections exist, treat it as a junction.
-  if (validCount > 2)
-    return getJunctionDirection(currentNode, lastNode, nextNode);
+  //if (validCount > 2)
+  //  return getJunctionDirection(currentNode, lastNode, nextNode);
     
   // For nodes with only two connections, if the next node equals the last node,
   // that indicates a 180° turn.
@@ -527,7 +529,7 @@ int getJunctionDirection(int currentNode, int lastNode, int nextNode) {
       if (nextNode == 0) return 1; // straight -> node 0
       if (nextNode == 1) {
         forwardDirection = !forwardDirection;
-        return 3; // right (with flip)
+        return 3; // right 
       }
       if (nextNode == 2) return 0; // back
     } else if (lastNode == 0) {
@@ -661,7 +663,6 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
     Serial.println(turnCode);
     
     // Perform action based on turn code
-    Serial.println(lastNode);
     choosePath(turnCode);
     delay(5000);
 
@@ -924,6 +925,8 @@ bool reRoute(int current, int next) {
     // Activate temporary routing mode
     reRouteActive = true;
     reRouteIndex = 0;
+
+    lastNode = next;
 
     //turn the robot around.
     reverse();
