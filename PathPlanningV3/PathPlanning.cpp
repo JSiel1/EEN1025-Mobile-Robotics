@@ -51,17 +51,8 @@ int getDirection(int currentNode, int lastNode, int nextNode) {
   if (lastNode == -1)
     return (forwardDirection) ? 1 : 0;
     
-  // Count valid neighbors for the current node.
-  int validCount = 0;
-  for (int j = 0; j < nodeCount; j++) {
-    if (j == currentNode)
-      continue;
-    if (weightMatrix[currentNode][j] != INF)
-      validCount++;
-  }
-  
   // If more than two connections exist, treat it as a junction.
-  if (validCount > 2)
+  if (currentNode == 6 || currentNode == 7)
     return getJunctionDirection(currentNode, lastNode, nextNode);
     
   // For nodes with only two connections, if the next node equals the last node, indicates a 180° turn.
@@ -161,14 +152,6 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
   int current = currentPath[index];
   int next = currentPath[index + 1];
   
-  //print path for debug
-  //Serial.print("processing Path: ");
-  //for (int j = 0; j < pathLength; j++) {
-  //  Serial.print(currentPath[j]);
-  //  if ( j >= 0 && j < pathLength-1) Serial.print(" -> ");
-  //}
-  //Serial.println("");
-
   // Obstacle detection & temporary re-routing.
   if (!isTempRoute && detectObstacle()) {
     // Update position index if re-routing
@@ -422,6 +405,8 @@ bool reRoute(int current, int next) {
     // Activate temporary routing mode
     reRouteActive = true;
     reRouteIndex = 0;
+
+    lastNode = next;
 
     //turn the robot around.
     reverse();
