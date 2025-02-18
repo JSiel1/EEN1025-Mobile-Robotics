@@ -13,6 +13,7 @@ Added parking; updated obstacle detection and check if current node = 5 ]
 #include "serverCommunication.h"
 #include "motorControl.h"
 #include "settings.h"
+#include "innovation.h"
 
 #define redPin 10
 #define greenPin 11
@@ -57,6 +58,8 @@ void setup() {
     pinMode(IR_PINS[i], INPUT);
   }
 
+  initialiseDisplay();
+
   driveMotor(0,0);
   // initialise LEDS
   setColour(255, 0, 0);
@@ -78,6 +81,7 @@ void setup() {
 
 void loop() {
   readLineSensors();
+  //displayBattery();
   
   if (!reRouteActive) {
     //Handle path with global path
