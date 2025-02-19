@@ -2,17 +2,17 @@
 #define settings_H
 
 // Motor Speeds
-constexpr int baseSpeed = 120;   // Base speed for the motors (0–255) 90
+constexpr int baseSpeed = 90;   // Base speed for the motors (0–255) 90
 constexpr int turnSpeed = 110;   // Turning Speed for 90 degree turns 110 
 constexpr int straightSpeed = 170;
 
-constexpr int pivotSpeed = 140;  // Speed for outside sensor turns 80
-constexpr int constrainSpeed = 140; // Max motor speed 130
+constexpr int pivotSpeed = 80;  // Speed for outside sensor turns 80
+constexpr int constrainSpeed = 130; // Max motor speed 130
 
 // PID parameters
-constexpr float Kp = 0.4; // Proportional gain (3) 0.48
+constexpr float Kp = 0.48; // Proportional gain (3) 0.48
 constexpr float Ki = 0;  // Integral gain (set to 0.000015 initially)
-constexpr float Kd = 3.5;  // Derivative gain   (4.25) 5
+constexpr float Kd = 5;  // Derivative gain   (4.25) 5
 
 // Separate PID values for straight paths
 constexpr float straightKp = 0.008; // Lower Kp to reduce oscillation 0.01

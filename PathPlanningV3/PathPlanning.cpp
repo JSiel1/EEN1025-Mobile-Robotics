@@ -156,7 +156,7 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
   next = currentPath[index + 1];
   
   // Obstacle detection & temporary re-routing.
-  if (!isTempRoute && (detectObstacle() || detectOuterObstacle())) {
+  if (!isTempRoute && detectObstacle()) {
     // Update position index if re-routing
     if (index > 0) {
       current = currentPath[index - 1];
