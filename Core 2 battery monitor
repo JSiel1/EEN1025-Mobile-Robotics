@@ -1,0 +1,126 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// **OLED Settings**
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1
+#define SDA_PIN       18
+#define SCL_PIN       17
+#define BATTERY_PIN   8
+
+// **Voltage Divider**
+#define R1 943.0  
+#define R2 325.0  
+#define ADC_MAX 4095.0  
+#define REF_VOLTAGE 3.3 
+#define BATTERY_MAX 10.8  
+#define BATTERY_MIN 9.4   
+
+// **Display Refresh Rate**
+const int displayRefreshRate = 1000;
+unsigned long prevMillis = 0;
+
+// **Initialize Display**
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+/*----------------------------------------------------------
+ *              Voltage to Battery Percentage
+ *--------------------------------------------------------*/
+int voltageToSOC(float voltage) {
+    if (voltage >= 10.8) return 100;
+    if (voltage >= 10.6) return 90;
+    if (voltage >= 10.4) return 80;
+    if (voltage >= 10.2) return 65;
+    if (voltage >= 10.0) return 50;
+    if (voltage >= 9.8)  return 35;
+    if (voltage >= 9.6)  return 20;
+    return 0; 
+}
+
+/*----------------------------------------------------------
+ *           Battery Display Task for Core 1
+ *--------------------------------------------------------*/
+void displayBatteryTask(void *pvParameters) {
+    while (1) {
+        displayBattery();  
+        vTaskDelay(displayRefreshRate / portTICK_PERIOD_MS); 
+    }
+}
+
+/*----------------------------------------------------------
+ *              Battery Display Function
+ *--------------------------------------------------------*/
+void displayBattery() {
+    unsigned long currMillis = millis();
+    if (currMillis - prevMillis >= displayRefreshRate) {
+        prevMillis = currMillis;  
+
+        // **Read Battery Voltage**
+        int rawADC = analogRead(BATTERY_PIN);
+        float adcVoltage = (rawADC / ADC_MAX) * REF_VOLTAGE;
+        float batteryVoltage = adcVoltage * ((R1 + R2) / R2) + 0.88;
+        int batteryPercentage = voltageToSOC(batteryVoltage);
+        int batteryBars = map(batteryPercentage, 0, 100, 0, 4);
+
+        Serial.print("Battery Voltage: ");
+        Serial.print(batteryVoltage, 2);
+        Serial.print("V | Charge: ");
+        Serial.print(batteryPercentage);
+        Serial.println("%");
+
+        // **Update Display**
+        display.clearDisplay();
+        display.drawRect(10, 10, 50, 20, WHITE);
+        display.fillRect(60, 15, 5, 10, WHITE);
+        for (int i = 0; i < batteryBars; i++) {
+            display.fillRect(12 + (i * 12), 12, 10, 16, WHITE);
+        }
+
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+        display.setCursor(10, 40);
+        display.print("Battery: ");
+        display.print(batteryVoltage, 2);
+        display.print("V");
+
+        display.setCursor(10, 52);
+        display.print("Charge: ");
+        display.print(batteryPercentage);
+        display.print("%");
+
+        display.display();
+    }
+}
+
+/*----------------------------------------------------------
+ *              Setup and Core Assignment
+ *--------------------------------------------------------*/
+void setup() {
+    Serial.begin(115200);
+    Wire.begin(SDA_PIN, SCL_PIN);
+    Wire.setClock(400000);
+
+    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        Serial.println("SSD1306 init failed!");
+        while (1);
+    }
+    display.clearDisplay();
+    display.display();
+
+    // **Create Display Task on Core 1**
+    xTaskCreatePinnedToCore(
+        displayBatteryTask,  // Function
+        "Battery Display",   // Task name
+        4096,                // Stack size
+        NULL,                // Parameters
+        1,                   // Priority (higher number = higher priority)
+        NULL,                // Task handle
+        1                    // Core 1 (ESP32 second core)
+    );
+}
+
+void loop() {
+    // **Main loop can run other tasks**
+}
