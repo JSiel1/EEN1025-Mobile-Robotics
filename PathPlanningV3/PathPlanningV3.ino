@@ -127,20 +127,25 @@ bool detectObstacle() {
   int totalValue = 0;
   int numSamples = 3;
 
-  delay(5);
-  totalValue = analogRead(obstacleSensor);
-  //check for error
-  if (totalValue < 2000) {
-    delay(5);
-    totalValue = analogRead(obstacleSensor);
+  // Take multiple readings and compute the average
+  for (int i = 0; i < numSamples; i++) {
+    totalValue += analogRead(obstacleSensor);
+    delay(5); // Small delay to allow readings to stabilize
   }
-  
-  //int avgSensorValue = totalValue / numSamples;
-  int adjustedValue = 4095 - totalValue;
+
+
+  //totalValue = analogueRead(obstacleSensor);
+  //check for error
+  //if (totalValue < 500) {
+  //  totalValue = analogueRead(aobstacleSensor);
+  //}
+
+  int avgSensorValue = totalValue / numSamples;
+  int adjustedValue = 4095 - avgSensorValue;
 
 
   // Check distance to obstacle
-  if (adjustedValue < obstacleThreshold && adjustedValue > 2000) {
+  if (adjustedValue < obstacleThreshold && adjustedValue > 1500) {
     Serial.println("Obstacle Detected!");
     return true;
   }
