@@ -34,12 +34,6 @@ unsigned long previousMillis = 0;
 int colorIndex = 0;
 float colourBrightness = 0.5;
 
-//DRS variables
-unsigned long drsStartTime = 0;
-bool drsActive = false;
-bool drsPending = false;
-
-
 void setup() {
   // Set motor pins as output
   pinMode(motor1Phase, OUTPUT);

@@ -8,9 +8,6 @@ extern int sensorValues[5];
 extern const int sensorCount;
 extern const int whiteThreshold;
 
-extern unsigned long drsStartTime;
-extern bool drsActive;
-extern bool drsPending;
 extern bool atNode;
 
 extern int current;

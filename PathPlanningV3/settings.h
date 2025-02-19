@@ -15,7 +15,7 @@ constexpr float Ki = 0;  // Integral gain (set to 0.000015 initially)
 constexpr float Kd = 4.25;  // Derivative gain   (4.25) 17
 
 // Separate PID values for straight paths
-constexpr float straightKp = 0.05; // Lower Kp to reduce oscillation
+constexpr float straightKp = 0.01; // Lower Kp to reduce oscillation
 constexpr float straightKd = 0; // Lower Kd for smoother correction
 
 // Object Detection Threshold
@@ -28,6 +28,9 @@ constexpr int rotationTime = 600;   // Time to turn 180 degrees
 constexpr int turningTime = 350;    // Time to make a 90 degree turn 
 constexpr int straightDelay = 800;  // Boost time
 
+constexpr int parkTime = 5000;
+
+constexpr int motorOffset = 2;
 
 // Wi-Fi credentials
 constexpr char *ssid = "iot";                                  // Replace with your Wi-Fi SSID

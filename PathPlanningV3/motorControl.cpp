@@ -92,36 +92,17 @@ void followLine() {
   if (isOnStraight) {
     leftSpeed  = constrain(leftSpeed, 0, straightSpeed);
     rightSpeed = constrain(rightSpeed, 0, straightSpeed);
+    switchDRS(1);
   } else {
     leftSpeed  = constrain(leftSpeed, 0, constrainSpeed);
     rightSpeed = constrain(rightSpeed, 0, constrainSpeed);
+    switchDRS(0);
   }
 
   Serial.print(leftSpeed);
   Serial.print("\t");
   Serial.println(rightSpeed);
 
-  //// DRS CALCULATIONS
-  //float avgSpeed = (leftSpeed + rightSpeed) / 2;  // Compute average speed
-
-  //// Detect speed drop (possible turn)
-  //if (!drsActive && !drsPending && avgSpeed < drsThreshold) {
-  //  drsPending = true;  
-  //  drsStartTime = millis();  // Start delay timer
-  //}
-
-  //// Activate DRS after delay
-  //if (drsPending && millis() >= drsDelay) {
-  //  switchDRS(true);
-  //  drsActive = true;
-  //  drsPending = false;
-  //}
-
-  //// Deactivate DRS when speed increases (back on a straight)
-  //if (drsActive && avgSpeed > drsThreshold + 20) {
-  //  switchDRS(false);
-  //  drsActive = false;
-  //}
   driveMotor(leftSpeed, rightSpeed);
 }
 
