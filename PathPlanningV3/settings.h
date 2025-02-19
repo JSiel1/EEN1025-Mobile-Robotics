@@ -12,7 +12,7 @@ constexpr int constrainSpeed = 130; // Max motor speed 130
 // PID parameters
 constexpr float Kp = 0.48; // Proportional gain (3) 0.48
 constexpr float Ki = 0;  // Integral gain (set to 0.000015 initially)
-constexpr float Kd = 5;  // Derivative gain   (4.25) 5
+constexpr float Kd = 5.5;  // Derivative gain   (4.25) 5
 
 // Separate PID values for straight paths
 constexpr float straightKp = 0.008; // Lower Kp to reduce oscillation 0.01

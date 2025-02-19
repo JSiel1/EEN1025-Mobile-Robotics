@@ -1,6 +1,6 @@
 #include "innovation.h"
 
-static const int displayRefreshRate = 1000;  // Now only accessible within this file
+static const int displayRefreshRate = 5000;  // Now only accessible within this file
 static unsigned long prevMillis = 0;         // Now only accessible within this file
 
 //LED variables
