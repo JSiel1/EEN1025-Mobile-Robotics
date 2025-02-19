@@ -176,10 +176,16 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
     return;
   }
   
+  digitalWrite(SIGNAL_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(SIGNAL_PIN, LOW);
+
   driveMotor(0, 0); // Stop the robot
   driveMotor(80, 80); // Drive forward at low speed
   delay(forwardDelay);          // Move slightly forward to cross the line
   driveMotor(0, 0);   // Stop again
+
+
 
   if (index < pathLength - 1) {
     // Only send position on nodes and not during re-routing    
@@ -241,6 +247,10 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
     Serial.println(tempPathLength);
     delay(2000);    //debug
   }
+
+  digitalWrite(RESUME_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(RESUME_PIN, LOW);
 }
 
 //-------------------------------------------------------------

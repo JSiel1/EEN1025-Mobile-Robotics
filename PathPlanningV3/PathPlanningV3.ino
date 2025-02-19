@@ -22,7 +22,6 @@ Added parking; updated obstacle detection and check if current node = 5 ]
 #define TRIGGER_PIN_2 42
 #define ECHO_PIN_2 45
 
-
 //Line detection Sensitivity
 const int whiteThreshold = 400; // Around 200 for white line. Greater means higher sensitivity
 
@@ -49,6 +48,11 @@ void setup() {
     
   pinMode(TRIGGER_PIN_2, OUTPUT);
   pinMode(ECHO_PIN_2, INPUT);
+
+  pinMode(SIGNAL_PIN, OUTPUT);
+  pinMode(RESUME_PIN, OUTPUT);
+  digitalWrite(SIGNAL_PIN, LOW);
+  digitalWrite(RESUME_PIN, LOW);
 
   pinMode(obstacleSensor, INPUT);
   for (int i = 0; i < sensorCount; i++){
@@ -259,3 +263,4 @@ bool detectOuterObstacle() {
     
   return false;
 }
+

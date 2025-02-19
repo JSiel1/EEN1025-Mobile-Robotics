@@ -4,6 +4,9 @@
 #define MAX_PATH_SIZE 20
 #define INF 9999
 
+#define SIGNAL_PIN 4  // Digital output to second ESP32 (interrupt line)
+#define RESUME_PIN 5  // Digital output to resume second ESP32
+
 // External Functions
 extern bool detectObstacle();
 extern bool detectOuterObstacle();
