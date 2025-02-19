@@ -97,7 +97,7 @@ void followLine() {
   } else {
     leftSpeed  = constrain(leftSpeed, 0, constrainSpeed);
     rightSpeed = constrain(rightSpeed, 0, constrainSpeed);
-    switchDRS(1);
+    switchDRS(0);
     obstacleThreshold = 2700;
   }
 

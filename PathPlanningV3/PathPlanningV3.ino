@@ -52,11 +52,20 @@ void setup() {
     pinMode(IR_PINS[i], INPUT);
   }
 
-  initialiseDisplay();
+  initDisplay();  // Call the new function for initialization
+
+  // **Create Display Task on Core 1**
+  xTaskCreatePinnedToCore(
+      displayBatteryTask,  // Function
+      "Battery Display",   // Task name
+      4096,                // Stack size
+      NULL,                // Parameters
+      1,                   // Priority
+      NULL,                // Task handle
+      1                    // Core 1
+  );
 
   driveMotor(0,0);
-
-  displayBattery();
 
   // initialise LEDS
   setColour(255, 0, 0);
