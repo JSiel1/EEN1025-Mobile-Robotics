@@ -133,7 +133,7 @@ bool detectObstacle() {
 
 
   // Check distance to obstacle
-  if (adjustedValue < obstacleThreshold && adjustedValue > 1500) {
+  if (adjustedValue < obstacleThreshold && adjustedValue > 200) {
     Serial.println("Obstacle Detected!");
     return true;
   }

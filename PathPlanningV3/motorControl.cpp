@@ -92,18 +92,20 @@ void followLine() {
   if (isOnStraight) {
     leftSpeed  = constrain(leftSpeed, 0, straightSpeed);
     rightSpeed = constrain(rightSpeed, 0, straightSpeed);
-    switchDRS(1);
+    switchDRS(0);
+    obstacleThreshold = 3300;
   } else {
     leftSpeed  = constrain(leftSpeed, 0, constrainSpeed);
     rightSpeed = constrain(rightSpeed, 0, constrainSpeed);
-    switchDRS(0);
+    switchDRS(1);
+    obstacleThreshold = 2700;
   }
 
   Serial.print(leftSpeed);
   Serial.print("\t");
   Serial.println(rightSpeed);
 
-  driveMotor(leftSpeed, rightSpeed);
+  driveMotor(leftSpeed - motorOffset, rightSpeed);
 }
 
 //-------------------------------------------------------------

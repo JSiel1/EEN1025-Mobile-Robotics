@@ -4,22 +4,22 @@
 // Motor Speeds
 constexpr int baseSpeed = 90;   // Base speed for the motors (0–255) 120
 constexpr int turnSpeed = 110;   // Turning Speed for 90 degree turns 
-constexpr int straightSpeed = 180;
+constexpr int straightSpeed = 170;
 
 constexpr int pivotSpeed = 80;  // Speed for outside sensor turns 90
 constexpr int constrainSpeed = 130; // Max motor speed 140
 
 // PID parameters
-constexpr float Kp = 0.5; // Proportional gain (3)
+constexpr float Kp = 0.47; // Proportional gain (3) 0.5
 constexpr float Ki = 0;  // Integral gain (set to 0.000015 initially)
 constexpr float Kd = 4.25;  // Derivative gain   (4.25) 17
 
 // Separate PID values for straight paths
-constexpr float straightKp = 0.01; // Lower Kp to reduce oscillation
+constexpr float straightKp = 0.03; // Lower Kp to reduce oscillation
 constexpr float straightKd = 0; // Lower Kd for smoother correction
 
 // Object Detection Threshold
-constexpr int obstacleThreshold = 2700;  //Obstacle Sensitivity. Higher means further sensing
+inline int obstacleThreshold = 2500;  //Obstacle Sensitivity. Higher means further sensing
 
 //Node detection settings
 constexpr int forwardDelay = 80;   // Time to move across line slightly
