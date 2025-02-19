@@ -19,13 +19,13 @@ constexpr float straightKp = 0.01; // Lower Kp to reduce oscillation
 constexpr float straightKd = 0; // Lower Kd for smoother correction
 
 // Object Detection Threshold
-constexpr int obstacleThreshold = 2500;  //Obstacle Sensitivity. Higher means further sensing
+constexpr int obstacleThreshold = 2700;  //Obstacle Sensitivity. Higher means further sensing
 
 //Node detection settings
 constexpr int forwardDelay = 80;   // Time to move across line slightly
 constexpr unsigned long stopDelay = 50;     // Stopping Time at node
 constexpr int rotationTime = 600;   // Time to turn 180 degrees
-constexpr int turningTime = 350;    // Time to make a 90 degree turn 
+constexpr int turningTime = 320;    // Time to make a 90 degree turn 
 constexpr int straightDelay = 800;  // Boost time
 
 constexpr int parkTime = 5000;

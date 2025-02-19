@@ -200,37 +200,11 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
     
     //Parking logic
     if (next == 5) {
-      unsigned long startTime = millis();  // Start time
-
-      while (!detectObstacle() && (millis() - startTime < parkTime)){
+      while (!detectObstacle()){
         Serial.println("Waiting for wall");
 
         //drive straight at wall
         driveMotor(baseSpeed - motorOffset, baseSpeed);
-
-        if (detectObstacle()) {
-          Serial.println("Obstacle detected! Avoiding...");
-
-          // Stop immediately
-          driveMotor(0, 0);
-          delay(100); // Short pause
-
-          // Reverse slightly
-          driveMotor(-80, -80);
-          delay(200);
-
-          // Turn right to move around obstacle
-          right();
-          delay(500);
-
-          // Move forward slightly to clear the obstacle
-          driveMotor(baseSpeed - motorOffset, baseSpeed);
-          delay(500);
-
-          // Turn left back toward the wall
-          left();
-
-        }
       }
 
       //Updated final position and stop
