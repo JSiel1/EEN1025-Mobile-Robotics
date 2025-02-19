@@ -21,6 +21,11 @@
 #define BATTERY_MAX 10.8  
 #define BATTERY_MIN 9.4   
 
+#define redPin 10
+#define greenPin 11
+#define bluePin 12
+#define DRSPin 9
+
 // **Display Object**
 extern Adafruit_SSD1306 display;
 
@@ -29,5 +34,9 @@ void initDisplay();
 void displayBatteryTask(void *pvParameters);
 void displayBattery();
 int voltageToSOC(float voltage);
+
+void setColour(int r, int g, int b);
+void rainbowFade(int wait);
+void switchDRS(bool DRSPosition);
 
 #endif

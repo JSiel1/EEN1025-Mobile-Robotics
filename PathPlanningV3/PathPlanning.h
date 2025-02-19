@@ -6,6 +6,7 @@
 
 // External Functions
 extern bool detectObstacle();
+extern bool detectOuterObstacle();
 extern void setColour(int r, int g, int b);
 extern void driveMotor(int left, int right);
 

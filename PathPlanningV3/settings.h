@@ -2,31 +2,32 @@
 #define settings_H
 
 // Motor Speeds
-constexpr int baseSpeed = 90;   // Base speed for the motors (0–255) 120
-constexpr int turnSpeed = 110;   // Turning Speed for 90 degree turns 
+constexpr int baseSpeed = 120;   // Base speed for the motors (0–255) 90
+constexpr int turnSpeed = 110;   // Turning Speed for 90 degree turns 110 
 constexpr int straightSpeed = 170;
 
-constexpr int pivotSpeed = 80;  // Speed for outside sensor turns 90
-constexpr int constrainSpeed = 130; // Max motor speed 140
+constexpr int pivotSpeed = 140;  // Speed for outside sensor turns 80
+constexpr int constrainSpeed = 140; // Max motor speed 130
 
 // PID parameters
-constexpr float Kp = 0.1; // Proportional gain (3) 0.48
+constexpr float Kp = 0.4; // Proportional gain (3) 0.48
 constexpr float Ki = 0;  // Integral gain (set to 0.000015 initially)
-constexpr float Kd = 0.05;  // Derivative gain   (4.25) 17
+constexpr float Kd = 3.5;  // Derivative gain   (4.25) 5
 
 // Separate PID values for straight paths
-constexpr float straightKp = 0.02; // Lower Kp to reduce oscillation
-constexpr float straightKd = 1; // Lower Kd for smoother correction
+constexpr float straightKp = 0.008; // Lower Kp to reduce oscillation 0.01
+constexpr float straightKd = 2; // Lower Kd for smoother correction
 
 // Object Detection Threshold
 inline int obstacleThreshold = 2500;  //Obstacle Sensitivity. Higher means further sensing
+const int outerObstacleThreshold = 2; // Obstacle detection threshold in cm
 
 //Node detection settings
 constexpr int forwardDelay = 80;   // Time to move across line slightly
 constexpr unsigned long stopDelay = 50;     // Stopping Time at node
 constexpr int rotationTime = 600;   // Time to turn 180 degrees
 constexpr int turningTime = 320;    // Time to make a 90 degree turn 
-constexpr int straightDelay = 800;  // Boost time
+constexpr int straightDelay = 1000;  // Boost time
 
 constexpr int parkTime = 5000;
 

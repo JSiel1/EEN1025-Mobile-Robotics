@@ -15,11 +15,13 @@ Added parking; updated obstacle detection and check if current node = 5 ]
 #include "settings.h"
 #include "innovation.h"
 
-#define redPin 10
-#define greenPin 11
-#define bluePin 12
-#define DRSPin 9
 #define obstacleSensor 1    //obbstacle detection sensor
+
+#define TRIGGER_PIN_1 40
+#define ECHO_PIN_1 41
+#define TRIGGER_PIN_2 42
+#define ECHO_PIN_2 45
+
 
 //Line detection Sensitivity
 const int whiteThreshold = 400; // Around 200 for white line. Greater means higher sensitivity
@@ -28,11 +30,6 @@ const int whiteThreshold = 400; // Around 200 for white line. Greater means high
 const int sensorCount = 5;
 const int IR_PINS[sensorCount] = {4, 7, 6, 5, 15}; // 2 sensors on the left, 2 on the right
 int sensorValues[5];
-
-//LED variables
-unsigned long previousMillis = 0;
-int colorIndex = 0;
-float colourBrightness = 0.5;
 
 void setup() {
   // Set motor pins as output
@@ -46,6 +43,12 @@ void setup() {
   pinMode(bluePin, OUTPUT);
 
   pinMode(DRSPin, OUTPUT);
+
+  pinMode(TRIGGER_PIN_1, OUTPUT);
+  pinMode(ECHO_PIN_1, INPUT);
+    
+  pinMode(TRIGGER_PIN_2, OUTPUT);
+  pinMode(ECHO_PIN_2, INPUT);
 
   pinMode(obstacleSensor, INPUT);
   for (int i = 0; i < sensorCount; i++){
@@ -124,25 +127,20 @@ bool detectObstacle() {
   int totalValue = 0;
   int numSamples = 3;
 
-  // Take multiple readings and compute the average
-  for (int i = 0; i < numSamples; i++) {
-    totalValue += analogRead(obstacleSensor);
-    delay(5); // Small delay to allow readings to stabilize
-  }
-
-
-  //totalValue = analogueRead(obstacleSensor);
+  delay(5);
+  totalValue = analogRead(obstacleSensor);
   //check for error
-  //if (totalValue < 500) {
-  //  totalValue = analogueRead(aobstacleSensor);
-  //}
-
-  int avgSensorValue = totalValue / numSamples;
-  int adjustedValue = 4095 - avgSensorValue;
+  if (totalValue < 2000) {
+    delay(5);
+    totalValue = analogRead(obstacleSensor);
+  }
+  
+  //int avgSensorValue = totalValue / numSamples;
+  int adjustedValue = 4095 - totalValue;
 
 
   // Check distance to obstacle
-  if (adjustedValue < obstacleThreshold && adjustedValue > 200) {
+  if (adjustedValue < obstacleThreshold && adjustedValue > 2000) {
     Serial.println("Obstacle Detected!");
     return true;
   }
@@ -218,43 +216,41 @@ void adjustPath() {
   Serial.println();
 }
 
-//-------------------------------------------------------------
-//---------------------------LED-------------------------------
-//-------------------------------------------------------------
 
-// Function to set RGB color
-void setColour(int r, int g, int b) {
-    analogWrite(redPin, r*colourBrightness);
-    analogWrite(greenPin, g*colourBrightness);
-    analogWrite(bluePin, b*colourBrightness);
-}
+// UltraSonic Sensors
+float getDistance(int triggerPin, int echoPin) {
+    long duration;
+    float distance;
 
-// Function to generate rainbow colors
-void rainbowFade(int wait) {
-    unsigned long currentMillis = millis();
-    
-    if (currentMillis - previousMillis >= wait) {
-        previousMillis = currentMillis;
+    // Trigger the sensor
+    digitalWrite(triggerPin, LOW);
+    delayMicroseconds(2);
+    digitalWrite(triggerPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(triggerPin, LOW);
 
-        int r = sin((colorIndex * 3.14159 / 128) + 0) * 127 + 128;
-        int g = sin((colorIndex * 3.14159 / 128) + 2.09439) * 127 + 128;
-        int b = sin((colorIndex * 3.14159 / 128) + 4.18878) * 127 + 128;
+    // Measure the time for echo
+    duration = pulseIn(echoPin, HIGH, 30000); // Timeout at 30ms (~5m max distance)
 
-        setColour(r, g, b);
+    // Convert time to distance
+    distance = duration * 0.0343 / 2;
 
-        colorIndex++;
-        if (colorIndex >= 256) colorIndex = 0; // Reset after full cycle
+    // If no valid measurement, return a large number
+    if (distance <= 0 || distance > 400) {
+        return 999; // Return a high value to indicate no detection
     }
+
+    return distance;
 }
 
-//-------------------------------------------------------------
-//---------------------------DRS-------------------------------
-//-------------------------------------------------------------
+bool detectOuterObstacle() {
+  float distance1 = getDistance(TRIGGER_PIN_1, ECHO_PIN_1);
+  float distance2 = getDistance(TRIGGER_PIN_2, ECHO_PIN_2);
 
-void switchDRS(bool DRSPosition){
-  if (DRSPosition) {
-    digitalWrite(DRSPin, HIGH);
-  } else {
-    digitalWrite(DRSPin, LOW);
+  // Check if either sensor detects an obstacle within the threshold
+  if (distance1 <= outerObstacleThreshold || distance2 <= outerObstacleThreshold) {
+    return true;
   }
+    
+  return false;
 }

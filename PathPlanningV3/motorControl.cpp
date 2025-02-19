@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "motorControl.h"
 #include "settings.h"
+#include "innovation.h"
 
 int leftSpeed = 0;
 int rightSpeed = 0;
@@ -65,10 +66,10 @@ void followLine() {
 
   float pidValue = (currentKp * error) + (Ki * integralError) + (currentKd * derivativeError);
 
-  // Middle sensor correction
-  if (sensorValues[2] < whiteThreshold) { 
-    pidValue /= 2;  // Reduce corrections when middle sensor sees the line
-  }
+  //// Middle sensor correction
+  //if (sensorValues[2] < whiteThreshold) { 
+  //  pidValue /= 2;  // Reduce corrections when middle sensor sees the line
+  //}
 
   // if outer sensor detected
   if (sensorValues[0] < whiteThreshold) {
@@ -101,10 +102,6 @@ void followLine() {
     obstacleThreshold = 2700;
   }
 
-  Serial.print(leftSpeed);
-  Serial.print("\t");
-  Serial.println(rightSpeed);
-
   driveMotor(leftSpeed - motorOffset, rightSpeed);
 }
 
@@ -114,6 +111,8 @@ void followLine() {
 
 // Motor drive function
 void driveMotor(int left, int right) {
+  left -= motorOffset;
+
   if (left >= 0) {
     digitalWrite(motor1Phase, LOW);
   } else {

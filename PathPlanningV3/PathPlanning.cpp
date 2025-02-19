@@ -156,7 +156,7 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
   next = currentPath[index + 1];
   
   // Obstacle detection & temporary re-routing.
-  if (!isTempRoute && detectObstacle()) {
+  if (!isTempRoute && (detectObstacle() || detectOuterObstacle())) {
     // Update position index if re-routing
     if (index > 0) {
       current = currentPath[index - 1];
@@ -204,7 +204,7 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
         Serial.println("Waiting for wall");
 
         //drive straight at wall
-        driveMotor(baseSpeed - motorOffset, baseSpeed);
+        driveMotor(baseSpeed, baseSpeed);
       }
 
       //Updated final position and stop
@@ -367,53 +367,52 @@ void computePath() {
 
 // re calculate route between current node and next node if obstacle detected.
 bool reRoute(int current, int next) {
-    Serial.println("Obstacle detected! Calculating temporary route...");
+  Serial.println("Obstacle detected! Calculating temporary route...");
 
+  // stop the robot before the obstacle
+  driveMotor(0,0);
 
-    // stop the robot before the obstacle
-    driveMotor(0,0);
+  // Backup the original weight before removing the connection
+  storeWeight = weightMatrix[current][next];
+  storeCurrent = current;
+  storeNext = next;
 
-    // Backup the original weight before removing the connection
-    storeWeight = weightMatrix[current][next];
-    storeCurrent = current;
-    storeNext = next;
+  // Temporarily remove the direct connection
+  weightMatrix[current][next] = INF;
+  weightMatrix[next][current] = INF;
 
-    // Temporarily remove the direct connection
-    weightMatrix[current][next] = INF;
-    weightMatrix[next][current] = INF;
+  // Compute temporary route
+  int newPath[MAX_PATH_SIZE];
+  int newPathLength = 0;
+  shortestPath(next, current, newPath, newPathLength);    //changed this
 
-    // Compute temporary route
-    int newPath[MAX_PATH_SIZE];
-    int newPathLength = 0;
-    shortestPath(next, current, newPath, newPathLength);    //changed this
+  if (newPathLength == 0) {
+    Serial.println("Re-route Error: No alternate path found! Stopping robot.");
+    return false;  // Indicate failure
+  }
 
-    if (newPathLength == 0) {
-        Serial.println("Re-route Error: No alternate path found! Stopping robot.");
-        return false;  // Indicate failure
-    }
+  // Copy the new path into the tempPath array AND DEBUG
+  for (int i = 0; i < newPathLength; i++) {
+    tempPath[i] = newPath[i];
+  }
+  tempPathLength = newPathLength;
 
-    // Copy the new path into the tempPath array AND DEBUG
-    for (int i = 0; i < newPathLength; i++) {
-        tempPath[i] = newPath[i];
-    }
-    tempPathLength = newPathLength;
+  // DEBUG
+  Serial.print("Re-route: ");
+  for (int j = 0; j < tempPathLength; j++) {
+    Serial.print(tempPath[j]);
+    if (j < tempPathLength - 1) Serial.print(" -> ");
+  }
+  Serial.println("");
 
-    // DEBUG
-    Serial.print("Re-route: ");
-    for (int j = 0; j < tempPathLength; j++) {
-      Serial.print(tempPath[j]);
-      if (j < tempPathLength - 1) Serial.print(" -> ");
-    }
-    Serial.println("");
+  // Activate temporary routing mode
+  reRouteActive = true;
+  reRouteIndex = 0;
 
-    // Activate temporary routing mode
-    reRouteActive = true;
-    reRouteIndex = 0;
+  lastNode = next;
 
-    lastNode = next;
+  //turn the robot around.
+  reverse();
 
-    //turn the robot around.
-    reverse();
-
-    return true;  // Indicate success
+  return true;  // Indicate success
 }

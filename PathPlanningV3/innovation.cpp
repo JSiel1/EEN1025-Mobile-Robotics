@@ -3,6 +3,11 @@
 static const int displayRefreshRate = 1000;  // Now only accessible within this file
 static unsigned long prevMillis = 0;         // Now only accessible within this file
 
+//LED variables
+unsigned long previousMillis = 0;
+int colorIndex = 0;
+float colourBrightness = 0.7;
+
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 void initDisplay() {
@@ -55,11 +60,11 @@ void displayBattery() {
       int batteryPercentage = voltageToSOC(batteryVoltage);
       int batteryBars = map(batteryPercentage, 0, 100, 0, 4);
 
-      Serial.print("Battery Voltage: ");
-      Serial.print(batteryVoltage, 2);
-      Serial.print("V | Charge: ");
-      Serial.print(batteryPercentage);
-      Serial.println("%");
+      //Serial.print("Battery Voltage: ");
+      //Serial.print(batteryVoltage, 2);
+      //Serial.print("V | Charge: ");
+      //Serial.print(batteryPercentage);
+      //Serial.println("%");
 
       // **Update Display**
       display.clearDisplay();
@@ -82,5 +87,46 @@ void displayBattery() {
       display.print("%");
 
       display.display();
+  }
+}
+
+//-------------------------------------------------------------
+//---------------------------LED-------------------------------
+//-------------------------------------------------------------
+
+// Function to set RGB color
+void setColour(int r, int g, int b) {
+    analogWrite(redPin, r*colourBrightness);
+    analogWrite(greenPin, g*colourBrightness);
+    analogWrite(bluePin, b*colourBrightness);
+}
+
+// Function to generate rainbow colors
+void rainbowFade(int wait) {
+    unsigned long currentMillis = millis();
+    
+    if (currentMillis - previousMillis >= wait) {
+        previousMillis = currentMillis;
+
+        int r = sin((colorIndex * 3.14159 / 128) + 0) * 127 + 128;
+        int g = sin((colorIndex * 3.14159 / 128) + 2.09439) * 127 + 128;
+        int b = sin((colorIndex * 3.14159 / 128) + 4.18878) * 127 + 128;
+
+        setColour(r, g, b);
+
+        colorIndex++;
+        if (colorIndex >= 256) colorIndex = 0; // Reset after full cycle
+    }
+}
+
+//-------------------------------------------------------------
+//---------------------------DRS-------------------------------
+//-------------------------------------------------------------
+
+void switchDRS(bool DRSPosition){
+  if (DRSPosition) {
+    digitalWrite(DRSPin, HIGH);
+  } else {
+    digitalWrite(DRSPin, LOW);
   }
 }
