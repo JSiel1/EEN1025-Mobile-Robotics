@@ -26,6 +26,7 @@ Added parking; updated obstacle detection and check if current node = 5 ]
 //Line detection Sensitivity
 const int whiteThreshold = 400; // Around 200 for white line. Greater means higher sensitivity
 
+
 // IR sensor pins (only outermost sensors are used)
 const int sensorCount = 5;
 const int IR_PINS[sensorCount] = {4, 7, 6, 5, 15}; // 2 sensors on the left, 2 on the right
@@ -55,18 +56,18 @@ void setup() {
     pinMode(IR_PINS[i], INPUT);
   }
 
-  initDisplay();  // Call the new function for initialization
+  //initDisplay();  // Call the new function for initialization
 
   // **Create Display Task on Core 1**
-  xTaskCreatePinnedToCore(
-      displayBatteryTask,  // Function
-      "Battery Display",   // Task name
-      4096,                // Stack size
-      NULL,                // Parameters
-      1,                   // Priority
-      NULL,                // Task handle
-      1                    // Core 1
-  );
+  //xTaskCreatePinnedToCore(
+  //    displayBatteryTask,  // Function
+  //    "Battery Display",   // Task name
+  //    4096,                // Stack size
+  //    NULL,                // Parameters
+  //    1,                   // Priority
+  //    NULL,                // Task handle
+  //    1                    // Core 1
+  //);
 
   driveMotor(0,0);
 
@@ -90,7 +91,7 @@ void setup() {
 
 void loop() {
   readLineSensors();
-  //displayBattery();
+  detectObstacle();
   
   if (!reRouteActive) {
     //Handle path with global path
@@ -147,8 +148,10 @@ bool detectObstacle() {
   // Check distance to obstacle
   if (adjustedValue < obstacleThreshold && adjustedValue > 1500) {
     Serial.println("Obstacle Detected!");
+    atObstacle = true;
     return true;
   }
+  atObstacle = false;
   return false;
 }
 

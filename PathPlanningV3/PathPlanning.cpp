@@ -5,6 +5,7 @@
 #include "settings.h"
 
 // PathPlanning specific variables.
+bool atObstacle = false;
 bool atNode = false;
 bool forwardDirection = true;   //Start with forward direction
 
@@ -156,7 +157,7 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
   next = currentPath[index + 1];
   
   // Obstacle detection & temporary re-routing.
-  if (!isTempRoute && detectObstacle()) {
+  if (!isTempRoute && atObstacle) {
     // Update position index if re-routing
     if (index > 0) {
       current = currentPath[index - 1];
@@ -204,11 +205,16 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
         Serial.println("Waiting for wall");
 
         //drive straight at wall
-        driveMotor(baseSpeed, baseSpeed);
+        driveMotor(baseSpeed - 4, baseSpeed);
       }
 
       //Updated final position and stop
       driveMotor(0,0);
+      delay(500);
+      driveMotor(80,80);
+      delay(250);
+      driveMotor(0,0);
+
       sendPosition(5);
       while (1) {
         driveMotor(0,0);
@@ -371,6 +377,10 @@ bool reRoute(int current, int next) {
 
   // stop the robot before the obstacle
   driveMotor(0,0);
+
+  //reverse slightly
+  driveMotor(-40, -40);
+  delay(50);
 
   // Backup the original weight before removing the connection
   storeWeight = weightMatrix[current][next];

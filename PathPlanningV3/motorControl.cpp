@@ -94,12 +94,12 @@ void followLine() {
     leftSpeed  = constrain(leftSpeed, 0, straightSpeed);
     rightSpeed = constrain(rightSpeed, 0, straightSpeed);
     switchDRS(0);
-    obstacleThreshold = 3300;
+    obstacleThreshold = 3000;
   } else {
     leftSpeed  = constrain(leftSpeed, 0, constrainSpeed);
     rightSpeed = constrain(rightSpeed, 0, constrainSpeed);
     switchDRS(0);
-    obstacleThreshold = 2700;
+    obstacleThreshold = 2500;
   }
 
   driveMotor(leftSpeed - motorOffset, rightSpeed);

@@ -26,10 +26,8 @@ const int outerObstacleThreshold = 2; // Obstacle detection threshold in cm
 constexpr int forwardDelay = 80;   // Time to move across line slightly
 constexpr unsigned long stopDelay = 50;     // Stopping Time at node
 constexpr int rotationTime = 600;   // Time to turn 180 degrees
-constexpr int turningTime = 300;    // Time to make a 90 degree turn 
+constexpr int turningTime = 275;    // Time to make a 90 degree turn 
 constexpr int straightDelay = 950;  // Boost time
-
-constexpr int parkTime = 5000;
 
 constexpr int motorOffset = 2;
 

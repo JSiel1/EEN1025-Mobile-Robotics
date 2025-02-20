@@ -15,6 +15,7 @@ extern void right();
 extern void reverse();
 
 // File specific Variables
+extern bool atObstacle;
 extern bool atNode;
 extern bool forwardDirection;   //Start with forward direction
 const int nodeCount = 8; // Number of nodes
