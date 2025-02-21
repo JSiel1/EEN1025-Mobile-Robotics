@@ -205,16 +205,11 @@ void processPath(int currentPath[], int &index, int pathLength, bool isTempRoute
         Serial.println("Waiting for wall");
 
         //drive straight at wall
-        driveMotor(baseSpeed - 4, baseSpeed);
+        driveMotor(baseSpeed + 5, baseSpeed);
       }
 
       //Updated final position and stop
       driveMotor(0,0);
-      delay(500);
-      driveMotor(80,80);
-      delay(250);
-      driveMotor(0,0);
-
       sendPosition(5);
       while (1) {
         driveMotor(0,0);
