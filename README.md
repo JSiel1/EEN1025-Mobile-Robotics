@@ -1,14 +1,11 @@
 # Mobile Robotics - Group 14  
 ---
-## Features:
-Full PID Line Following with Path Planning and Server Communication.
-
-
-## Instructions:
+## Description:
+Final Revision of our Mobile Robotics Mobot code
 
 
 
-## Members:
+## Contributors:
 - Jakub Sielski
 - Kian Hickey
 - Matthew Scanlan
