@@ -1,0 +1,137 @@
+#include <WiFi.h>
+
+// WiFi credentials
+const char ssid[] = "iot";
+const char password[] = "overtechnicality7petrophilous";
+WiFiClient client;
+
+// Server details
+const char server[] = "3.250.38.184";
+const int port = 8000;
+
+// Global variables
+int position = 0;
+int destination = -1; // Initialize to a default value
+
+// Connect to WiFi with timeout
+void connectToWiFi() {
+  Serial.print("Connecting to WiFi");
+  WiFi.mode(WIFI_STA); // Set ESP32 to station mode
+  WiFi.begin(ssid, password);
+
+  unsigned long startTime = millis();
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+    if (millis() - startTime > 15000) { // 15-second timeout
+      Serial.println("\nFailed to connect to WiFi. Restarting...");
+      ESP.restart(); // Restart the ESP32
+    }
+  }
+
+  Serial.println("\nConnected to WiFi!");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+}
+
+// Read the server response
+String readResponse() {
+  String response = "";
+  unsigned long startTime = millis();
+
+  // Wait for server response with a timeout
+  while (!client.available() && millis() - startTime < 5000) {
+    delay(100);
+  }
+
+  while (client.available()) {
+    response += char(client.read());
+  }
+
+  if (response == "") {
+    Serial.println("Error: No response received from the server.");
+  }
+
+  return response;
+}
+
+// Extract the status code from the response
+int getStatusCode(String &response) {
+  String code = response.substring(9, 12);
+  return code.toInt();
+}
+
+// Extract the body of the response
+String getResponseBody(String &response) {
+  int split = response.indexOf("\r\n\r\n");
+  String body = response.substring(split + 4);
+  body.trim();
+  return body;
+}
+
+void ServerGet(){
+  Serial.println("Connecting to server...");
+  if (!client.connect(server, port)) {
+    Serial.println("Error: Could not connect to server.");
+    delay(10000); // Wait before retrying
+    return;
+  }
+
+  // Prepare the POST body
+  String postBody = "position=" + String(position);
+
+  // Send the POST request
+  client.println("POST /api/arrived/rhtr2655 HTTP/1.1");
+  client.println("Host: " + String(server));
+  client.println("Content-Type: application/x-www-form-urlencoded");
+  client.print("Content-Length: ");
+  client.println(postBody.length());
+  client.println("Connection: close");
+  client.println();
+  client.println(postBody);
+
+  Serial.println("POST body sent: " + postBody);
+
+  // Read the response
+  String response = readResponse();
+  Serial.println("Raw response:");
+  Serial.println(response);
+
+  // Get the status code
+  int statusCode = getStatusCode(response);
+  if (statusCode == 200) {
+    // Success, process the response body
+    String body = getResponseBody(response);
+    if (!body.equals("undefined")) {
+      destination = body.toInt();
+      Serial.print("Updated destination: ");
+      Serial.println(destination);
+
+      // Update position if needed
+      position = destination; // For example, set the position to the new destination
+    } else {
+      Serial.println("Error: Response body is undefined.");
+    }
+  } else {
+    Serial.println("Error: Failed to get a valid response from the server.");
+  }
+
+  // Close the connection
+  client.stop();
+}
+
+void setup() {
+  // Start serial communication
+  Serial.begin(115200);
+  delay(1000);
+
+  // Connect to WiFi
+  connectToWiFi();
+}
+
+void loop() {
+  
+   ServerGet();
+  // Wait before sending the next request
+  delay(1000); // Adjust as needed
+}
